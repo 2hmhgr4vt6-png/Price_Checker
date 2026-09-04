@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nepali Price Checker — compare prices across Nepali online stores</title>
+<meta name="description" content="Search a product once and compare live prices across Daraz Nepal, SastoDeal, Oliz Store, Neoshop24 and other Nepali online shops.">
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🏔️</text></svg>">
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap masthead__inner">
+    <a class="brand" href="/">
+      <span class="brand__mark" aria-hidden="true"></span>
+      <span class="brand__text">Nepali <strong>Price Checker</strong></span>
+    </a>
+    <p class="masthead__tag">Compare one product across Nepal&rsquo;s online shops</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <h1>Find the lowest price in Nepal</h1>
+    <p class="hero__sub">
+      Type a product and we check Nepali stores and marketplaces live, then sort every
+      listing we actually find from cheapest to most expensive.
+    </p>
+
+    <form class="search" id="search-form" role="search" autocomplete="off">
+      <label class="sr-only" for="q">Product name</label>
+      <input
+        id="q" name="q" type="search" required minlength="2"
+        placeholder="e.g. iPhone 17 Pro Max, Dell laptop i5, Samsung 55 inch TV"
+        aria-describedby="examples">
+      <button type="submit" id="search-btn">
+        <span class="search__label">Compare prices</span>
+      </button>
+    </form>
+
+    <p class="examples" id="examples">
+      Try:
+      <button type="button" class="chip" data-query="iPhone 17 Pro Max">iPhone 17 Pro Max</button>
+      <button type="button" class="chip" data-query="Dell laptop i5">Dell laptop i5</button>
+      <button type="button" class="chip" data-query="Samsung 55 inch TV">Samsung 55 inch TV</button>
+      <button type="button" class="chip" data-query="air fryer">Air fryer</button>
+    </p>
+  </section>
+
+  <section id="status-region" aria-live="polite"></section>
+
+  <!-- Results: one <table> that collapses into stacked cards under 720px. -->
+  <section id="results-region" hidden>
+    <div class="results__head">
+      <div>
+        <h2 id="results-title"></h2>
+        <p class="results__meta" id="results-meta"></p>
+      </div>
+      <div class="sortbar">
+        <label for="sort">Sort by</label>
+        <select id="sort">
+          <option value="price-asc">Price: low to high</option>
+          <option value="price-desc">Price: high to low</option>
+          <option value="shop">Shop name (A–Z)</option>
+          <option value="availability">Availability</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="summary"></div>
+    <div id="warnings"></div>
+
+    <table class="results" id="results-table">
+      <thead>
+        <tr>
+          <th scope="col">Shop</th>
+          <th scope="col">Product</th>
+          <th scope="col" class="num">Price (NPR)</th>
+          <th scope="col">Availability</th>
+          <th scope="col"><span class="sr-only">Link</span></th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+
+    <p class="disclaimer">
+      Prices are pulled live from each shop at search time and can change without notice.
+      Always confirm the price, warranty and stock on the seller&rsquo;s own page before you pay.
+    </p>
+
+    <details class="store-status" id="store-status">
+      <summary>Which shops were checked?</summary>
+      <ul id="store-status-list"></ul>
+    </details>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <p>
+      Nepali Price Checker is an independent comparison tool. It shows only listings
+      returned live by each shop &mdash; nothing is estimated or filled in.
+      We are not affiliated with any store listed.
+    </p>
+  </div>
+</footer>
+
+<template id="row-template">
+  <tr>
+    <td data-label="Shop"><span class="shop"></span></td>
+    <td data-label="Product">
+      <span class="product"></span>
+      <span class="tags"></span>
+    </td>
+    <td data-label="Price" class="num"><span class="price"></span><small class="converted"></small></td>
+    <td data-label="Availability"><span class="stock"></span></td>
+    <td class="action"><a class="btn-view" target="_blank" rel="noopener nofollow">View on site</a></td>
+  </tr>
+</template>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "name": "nepali-price-checker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Compare product prices across Nepali online stores and marketplaces.",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "check:stores": "node scripts/check-stores.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "nepal",
+    "price-comparison",
+    "daraz",
+    "sastodeal",
+    "hamrobazar"
+  ],
+  "license": "MIT"
+}
