@@ -25,7 +25,7 @@ import sastodeal from './sastodeal.js';
 import olizstore from './olizstore.js';
 import neoshop24 from './neoshop24.js';
 import bananamobile from './bananamobile.js';
-import gadgetbyte from './pricereference.js';
+import gadgetbyte from './gadgetbyte.js';
 import { hukut, smartdoko, itti, hamrobazar } from './spa.js';
 
 export const stores = [

@@ -130,29 +130,38 @@ export function renderedStore({ id, name, homepage, searchUrl, waitFor, kind = '
     kind,
     needsBrowser: true,
 
-    async search(query, { limit = 12, timeout } = {}) {
-      if (!(await browserAvailable())) {
-        throw new Error('Needs headless rendering - run: npm run setup:browser');
-      }
-
-      const listings = await renderAndExtract(searchUrl(query), extractListings, { waitFor, timeout });
-
-      return (listings ?? [])
-        .map((listing) => {
-          const price = parsePrice(listing.priceText, 'NPR');
-          if (!price) return null;
-          return {
-            productName: listing.productName,
-            ...price,
-            url: listing.url,
-            availability: listing.availability ?? 'unknown',
-            note,
-          };
-        })
-        .filter(Boolean)
-        .slice(0, limit);
+    search(query, { limit = 12, timeout } = {}) {
+      return renderListings(searchUrl(query), { limit, timeout, waitFor, note });
     },
   };
+}
+
+/**
+ * Render `searchUrl` and return normalised listings. Used both by
+ * `renderedStore` and by adapters that prefer HTTP but fall back to a real
+ * browser when a shop's CDN blocks non-browser clients.
+ */
+export async function renderListings(searchUrl, { limit = 12, timeout, waitFor, note = null } = {}) {
+  if (!(await browserAvailable())) {
+    throw new Error('Needs headless rendering - run: npm run setup:browser');
+  }
+
+  const listings = await renderAndExtract(searchUrl, extractListings, { waitFor, timeout });
+
+  return (listings ?? [])
+    .map((listing) => {
+      const price = parsePrice(listing.priceText, 'NPR');
+      if (!price) return null;
+      return {
+        productName: listing.productName,
+        ...price,
+        url: listing.url,
+        availability: listing.availability ?? 'unknown',
+        note,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, limit);
 }
 
 // Exported for the extractor tests, which run it against a fixture page.

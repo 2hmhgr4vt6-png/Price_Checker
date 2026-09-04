@@ -80,7 +80,7 @@ Three fetch mechanisms, in order of preference:
 | Daraz Nepal | `src/stores/daraz.js` | Internal JSON search API, no key needed. Queries the relevance page *and* the price-descending page and merges them, because Daraz's default ranking buries real devices under accessories. |
 | Evo Store | `src/stores/evostore.js` | Server-rendered OpenCart theme; `.common-item` cards |
 | SastoDeal | `src/stores/sastodeal.js` | Magento 2 `catalogsearch` HTML |
-| Oliz Store | `src/stores/olizstore.js` | Shopify predictive-search JSON |
+| Oliz Store | `src/stores/olizstore.js` | Shopify predictive-search JSON, falling back to a real browser when Cloudflare blocks the JSON path |
 | Neoshop24 | `src/stores/neoshop24.js` | WooCommerce Store API, falls back to shop-page HTML |
 | Banana Mobile | `src/stores/bananamobile.js` | WooCommerce Store API, falls back to shop-page HTML |
 
@@ -99,17 +99,31 @@ out links whose visible text holds both a price and a product title — the same
 thing a shopper's eye does. Search URLs come from each site's own published
 `SearchAction` template where it has one, rather than being guessed.
 
-**3. Published "official price" references** (`src/stores/pricereference.js`).
+**3. Published "official price" reference** (`src/stores/gadgetbyte.js`).
 
 | Source | Notes |
 |---|---|
-| Gadgetbyte Nepal | WordPress REST API. Not a shop: it publishes official launch prices, so its rows are tagged **Official price, not a shop**, link to the article, and are excluded from the "Best price" badge |
+| Gadgetbyte Nepal | `gadgetbytenepal.com` — a review publication, not a shop. Its "<product> Price in Nepal" articles carry the official variant table, which is the number to judge shop listings against. Rows are tagged **Official price, not a shop**, link to the article, and are excluded from the "Best price" badge |
 
-Extraction here is deliberately strict, because a naive "first Rs. number in
-the article" reader is worse than useless — pointed at a tech blog it will
-cheerfully return the price of an unrelated app subscription. A price is taken
-only when the post title *and* the individual table row match the query, and
-speculative wording ("could start at", "expected", "leak") is rejected outright.
+Verified live: `iPhone 17` returns NPR 173,499 (256GB) and NPR 215,699 (512GB),
+matching Evo Store's listing to the rupee, and Pro Max 256GB at NPR 242,499
+matches Daraz. That cross-check is most of the value of having a reference
+source in the table.
+
+Extraction is deliberately strict, because a naive "first Rs. number in the
+article" reader is worse than useless — pointed at a tech blog it happily
+returns the price of an unrelated app subscription. So:
+
+- the article slug must contain **every** query token and the word "price", and
+  the slug with the fewest *extra* words wins, so a search for "iPhone 17" reads
+  the iPhone 17 article rather than the iPhone 17 Pro Max one;
+- Gadgetbyte republishes price changes as an "Old Price | New Price" table, so
+  when a row carries two figures the **last** is taken — quoting the first would
+  advertise a price that no longer applies;
+- the variant row must still match the query, so a "related phones" table at the
+  foot of the article cannot leak in;
+- speculative wording ("could start at", "expected", "leak") is rejected, and
+  "(out of stock)" in a row is carried through as availability.
 
 ### Reachability is environment-dependent — this matters
 
@@ -118,8 +132,9 @@ Nepal, so **which stores fill in depends on where you run this**. Measured from
 a cloud host outside Nepal:
 
 - reachable and parsing: Daraz Nepal, Evo Store
-- HTTP 403 to non-browser clients: Oliz Store
-- connection refused / DNS blocked: SastoDeal, Neoshop24, Banana Mobile, Gadgetbyte
+- Cloudflare bot block on every path ("Sorry, you have been blocked", HTTP 403), so it falls back to browser rendering: Oliz Store
+- reachable and parsing: Gadgetbyte Nepal (official price reference)
+- connection refused / DNS blocked: SastoDeal, Neoshop24, Banana Mobile
 - reachable but JavaScript-only, so needing `setup:browser`: Hukut, SmartDoko, ITTI, Hamrobazar
 
 From a machine in Nepal you should get considerably more. Run
@@ -212,6 +227,7 @@ src/html.js            dependency-free HTML extraction helpers
 src/stores/            one module per shop + shared platform routines
 src/stores/rendered.js   DOM extraction for JavaScript-only storefronts
 src/stores/spa.js        the four rendered stores
+src/stores/gadgetbyte.js official-price reference reader
 src/stores/pricereference.js  strict WordPress "official price" reader
 public/                index.html, styles.css, app.js (no build step)
 scripts/check-stores.js  reachability diagnostic
