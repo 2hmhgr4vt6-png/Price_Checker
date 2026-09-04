@@ -148,6 +148,16 @@ export async function renderListings(searchUrl, { limit = 12, timeout, waitFor, 
 
   const listings = await renderAndExtract(searchUrl, extractListings, { waitFor, timeout });
 
+  // RENDER_DEBUG=1 prints what the browser actually saw, which is the quickest
+  // way to tell "the shop returned nothing" apart from "our extraction missed
+  // it" when a storefront changes its markup.
+  if (process.env.RENDER_DEBUG) {
+    console.log(`[render] ${searchUrl} -> ${listings?.length ?? 0} raw listings`);
+    for (const listing of (listings ?? []).slice(0, 5)) {
+      console.log(`[render]   (${listing.source}) ${listing.priceText}  ${String(listing.productName).slice(0, 60)}`);
+    }
+  }
+
   return (listings ?? [])
     .map((listing) => {
       const price = parsePrice(listing.priceText, 'NPR');

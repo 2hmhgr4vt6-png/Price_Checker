@@ -38,6 +38,29 @@ const VARIANT_RE = /\d+\s?(?:gb|tb|mb|l|ml|inch|in|w|mah|hz)\b|\d+\s?\/\s?\d+|^\
 /** Next.js flight payloads embed HTML with escaped quotes and newlines. */
 const unescapeFlight = (html) => html.replace(/\\"/g, '"').replace(/\\n/g, ' ');
 
+/**
+ * Gadgetbyte's price articles live at predictable URLs:
+ *   /samsung-galaxy-s26-ultra-price-in-nepal/
+ *   /samsung-galaxy-s26-ultra-price-nepal/
+ * Both forms are in use. Constructing them directly matters because the site's
+ * own search ranks reviews, drop tests and rumour posts above the price page -
+ * a search for "Samsung Galaxy S26 Ultra" returns four Ultra articles, none of
+ * them the price one, so relying on search alone silently missed products the
+ * site clearly covers.
+ */
+function guessedArticles(query) {
+  const slug = String(query)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  if (!slug) return [];
+
+  return [
+    `${ORIGIN}/${slug}-price-in-nepal/`,
+    `${ORIGIN}/${slug}-price-nepal/`,
+  ];
+}
+
 /** Article slugs on the search page, best candidates first. */
 function candidateArticles(html, query) {
   const tokens = tokenise(query);
@@ -139,22 +162,43 @@ export default {
   kind: 'reference',
 
   async search(query, { limit = 6, timeout } = {}) {
-    const searchHtml = await getText(`${ORIGIN}/search/?q=${encodeURIComponent(query)}`, { timeout });
-    const articles = candidateArticles(searchHtml, query).slice(0, 2);
+    // Try the predictable URLs first, then whatever the site's search offers.
+    const searchHtml = await getText(`${ORIGIN}/search/?q=${encodeURIComponent(query)}`, { timeout })
+      .catch(() => '');
+    const articles = [...new Set([...guessedArticles(query), ...candidateArticles(searchHtml, query)])];
 
     const rows = [];
+    let reached = 0;
+
     for (const articleUrl of articles) {
+      if (rows.length >= limit || reached >= 3) break;
+
+      // A guessed URL that does not exist 404s; that is expected, not an error.
       const html = await getText(articleUrl, { timeout }).catch(() => null);
       if (!html) continue;
+      reached += 1;
 
       rows.push(...pricesFromArticle(html, query, articleUrl, limit - rows.length));
-      if (rows.length >= limit) break;
     }
 
-    return rows;
+    if (!rows.length && !reached) {
+      throw new Error(`No price article found for "${query}"`);
+    }
+
+    // Gadgetbyte serves the same article under both "-price-in-nepal" and
+    // "-price-nepal", so the same variant can arrive twice under different
+    // URLs. Keep the first of each product+price pair.
+    const seen = new Set();
+    return rows.filter((row) => {
+      const key = `${row.productName}|${row.amount}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   },
 };
 
 // Exported for tests: the parsing rules are the risky part of this adapter.
 export const __parseArticle = pricesFromArticle;
 export const __candidateArticles = candidateArticles;
+export const __guessedArticles = guessedArticles;

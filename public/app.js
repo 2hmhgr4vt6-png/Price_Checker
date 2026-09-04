@@ -124,11 +124,16 @@ function renderWarnings(payload) {
       (${escapeHtml(payload.fx.source)}${payload.fx.approximate ? ', approximate' : ''}).</span></div>`);
   }
 
-  if (payload.browserRendering === false
-      && payload.stores.some((store) => /setup:browser/.test(store.error ?? ''))) {
+  // Name the stores that were actually skipped for want of a browser, rather
+  // than a hardcoded list - which shops need rendering changes as adapters
+  // move onto HTTP APIs.
+  const needBrowser = payload.stores.filter((store) => /setup:browser/.test(store.error ?? ''));
+  if (needBrowser.length) {
+    const names = needBrowser.map((store) => escapeHtml(store.name)).join(', ');
     notices.push(`<div class="notice notice--info"><span aria-hidden="true">🧩</span><span>
-      Hukut, SmartDoko, ITTI and Hamrobazar are JavaScript-only storefronts, so they were skipped.
-      Run <code>npm run setup:browser</code> once to include them.</span></div>`);
+      ${names} ${needBrowser.length === 1 ? 'is a JavaScript-only storefront' : 'are JavaScript-only storefronts'},
+      so ${needBrowser.length === 1 ? 'it was' : 'they were'} skipped.
+      Run <code>npm run setup:browser</code> once to include ${needBrowser.length === 1 ? 'it' : 'them'}.</span></div>`);
   }
 
   warningsBox.innerHTML = notices.join('');

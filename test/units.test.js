@@ -27,6 +27,15 @@ test('keeps real products and drops accessories', () => {
   assert.ok(isRelevant('iphone 14 case', 'Apple iPhone 14 Silicone Case Black'));
 });
 
+test('drops the cheap camera-ring and film listings that crowd flagship searches', () => {
+  const query = 'Samsung Galaxy S26 Ultra';
+  assert.ok(isRelevant(query, 'Samsung Galaxy S26 Ultra'));
+  assert.ok(!isRelevant(query, 'Samsung S26 Ultra Metallic Ring Camera Lens Protector'));
+  assert.ok(!isRelevant(query, 'Samsung Galaxy S26 Ultra Hydrogel Film 2 Pack'));
+  // A shopper who wants the lens ring still gets it.
+  assert.ok(isRelevant('camera lens ring s26 ultra', 'Samsung S26 Ultra Metallic Ring Camera Lens'));
+});
+
 test('flags listings that only partially match the query', () => {
   const { missing } = scoreListing('iPhone 14 128GB', 'Apple iPhone 14 256GB');
   assert.deepEqual(missing, ['128gb']);

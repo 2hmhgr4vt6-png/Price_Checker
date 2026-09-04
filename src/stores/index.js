@@ -13,9 +13,9 @@
  * rewriting one adapter's `search` - nothing else changes.
  *
  * Three fetch mechanisms are in play, in order of preference:
- *   1. a store's own JSON search API           (daraz)
+ *   1. a store's own JSON search API           (daraz, hukut)
  *   2. server-rendered HTML                    (evostore, sastodeal, neoshop24, …)
- *   3. headless rendering of a JS-only SPA     (hukut, smartdoko, itti, hamrobazar)
+ *   3. headless rendering of a JS-only SPA     (smartdoko, itti, hamrobazar)
  * Mechanism 3 needs `npm run setup:browser`; without it those stores are
  * skipped and everything else still works.
  */
@@ -26,18 +26,19 @@ import olizstore from './olizstore.js';
 import neoshop24 from './neoshop24.js';
 import bananamobile from './bananamobile.js';
 import gadgetbyte from './gadgetbyte.js';
-import { hukut, smartdoko, itti, hamrobazar } from './spa.js';
+import hukut from './hukut.js';
+import { smartdoko, itti, hamrobazar } from './spa.js';
 
 export const stores = [
   // Direct API / server-rendered HTML - work anywhere the site is reachable.
   daraz,
   evostore,
+  hukut,
   sastodeal,
   olizstore,
   neoshop24,
   bananamobile,
   // Headless-rendered SPAs.
-  hukut,
   smartdoko,
   itti,
   hamrobazar,

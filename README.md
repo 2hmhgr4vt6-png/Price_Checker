@@ -19,10 +19,10 @@ npm test                  # parsing, relevance, orchestrator, rendering
 npm run check:stores -- "iphone 17"   # which shops your network can reach
 ```
 
-**Run `npm run setup:browser` if you want more than a couple of shops.** Four
-of Nepal's biggest storefronts are JavaScript-only (see below); that command
-installs Playwright + Chromium so they can be read. Without it they are
-skipped and the site still works.
+**`npm run setup:browser` is optional.** Daraz, Hukut, Evo Store and
+Gadgetbyte all work over plain HTTP with nothing installed. The command adds
+SmartDoko, Hamrobazar, ITTI and the Oliz fallback, which are JavaScript-only
+(see below). Without it they are skipped and the site still works.
 
 Requires Node 18.17+ (Node 22 recommended). `PORT` and `HOST` are honoured.
 `CHROMIUM_PATH` points at an existing Chromium build instead of downloading
@@ -78,6 +78,7 @@ Three fetch mechanisms, in order of preference:
 | Store | Adapter | Integration |
 |---|---|---|
 | Daraz Nepal | `src/stores/daraz.js` | Internal JSON search API, no key needed. Queries the relevance page *and* the price-descending page and merges them, because Daraz's default ranking buries real devices under accessories. |
+| Hukut | `src/stores/hukut.js` | `POST /api-server/v1/product/list-elastic` — a public, unauthenticated endpoint its own bundle names. Returns name, slug, price and stock status, so Hukut needs no browser despite being an SPA |
 | Evo Store | `src/stores/evostore.js` | Server-rendered OpenCart theme; `.common-item` cards |
 | SastoDeal | `src/stores/sastodeal.js` | Magento 2 `catalogsearch` HTML |
 | Oliz Store | `src/stores/olizstore.js` | Shopify predictive-search JSON, falling back to a real browser when Cloudflare blocks the JSON path |
@@ -88,9 +89,8 @@ Three fetch mechanisms, in order of preference:
 
 | Store | Why |
 |---|---|
-| Hukut | Next.js app; the search HTML ships zero prices |
-| SmartDoko | Same — grid is built client side |
-| ITTI Computer World | Same; unrendered markup literally reads `रु NaN` |
+| SmartDoko | Next.js app; the grid is built client side and the search HTML ships zero prices |
+| ITTI Computer World | Same, and weaker: its reachable API returns `selling_price: 0` for every search row, which is why its unrendered markup reads `रु NaN`. Expect it to contribute nothing for many queries — that is the shop, not this code |
 | Hamrobazar | SPA over a token-gated API (`api.hamrobazaar.com` returns "Un-Authorized Access" to anonymous callers) |
 
 These render the shop's real search page in Chromium and read the finished DOM,
@@ -131,11 +131,11 @@ Several Nepali sites sit behind bot protection or refuse traffic from outside
 Nepal, so **which stores fill in depends on where you run this**. Measured from
 a cloud host outside Nepal:
 
-- reachable and parsing: Daraz Nepal, Evo Store
+- reachable and parsing: Daraz Nepal, Hukut, Evo Store
 - Cloudflare bot block on every path ("Sorry, you have been blocked", HTTP 403), so it falls back to browser rendering: Oliz Store
 - reachable and parsing: Gadgetbyte Nepal (official price reference)
 - connection refused / DNS blocked: SastoDeal, Neoshop24, Banana Mobile
-- reachable but JavaScript-only, so needing `setup:browser`: Hukut, SmartDoko, ITTI, Hamrobazar
+- reachable but JavaScript-only, so needing `setup:browser`: SmartDoko, ITTI, Hamrobazar
 
 From a machine in Nepal you should get considerably more. Run
 `npm run check:stores -- "iphone 17"` to see what *your* network reaches — that
@@ -226,7 +226,8 @@ src/http.js            fetch with timeout, browser UA, retry on 429/5xx
 src/html.js            dependency-free HTML extraction helpers
 src/stores/            one module per shop + shared platform routines
 src/stores/rendered.js   DOM extraction for JavaScript-only storefronts
-src/stores/spa.js        the four rendered stores
+src/stores/spa.js        the rendered stores
+src/stores/hukut.js      Hukut's public elastic-search API
 src/stores/gadgetbyte.js official-price reference reader
 src/stores/pricereference.js  strict WordPress "official price" reader
 public/                index.html, styles.css, app.js (no build step)

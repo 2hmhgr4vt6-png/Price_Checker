@@ -17,6 +17,10 @@ const ACCESSORY_WORDS = [
   'holder', 'stand', 'mount', 'strap', 'lens protector', 'camera protector',
   'sticker', 'skin wrap', 'combo offer', 'replacement', 'battery',
   'earphone', 'headphone', 'airpod', 'stylus', 'sim tray', 'back glass',
+  // Camera-lens rings, screen films and grips are the cheapest listings on
+  // Daraz for any flagship search, so they crowd the top of the table.
+  // Searching for one of these inverts the rule and brings them back.
+  'lens', 'ring', 'film', 'grip', 'dock', 'sim ejector', 'keyboard cover',
 ];
 
 /** Lowercase, drop punctuation, and glue "128 gb" into "128gb" so both match. */

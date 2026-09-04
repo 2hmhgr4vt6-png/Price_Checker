@@ -1,5 +1,8 @@
 /**
- * Nepali stores that are client-rendered single-page apps.
+ * Nepali stores that are client-rendered single-page apps with no usable HTTP
+ * endpoint. (Hukut also renders client-side but exposes a public JSON API, so
+ * it lives in ./hukut.js and needs no browser - always worth checking for one
+ * before adding a store here.)
  *
  * Each of these shows nothing at all to a plain HTTP fetch - their search
  * pages ship an empty shell and load listings over private XHR endpoints - so
@@ -11,15 +14,6 @@
  */
 import { renderedStore } from './rendered.js';
 
-export const hukut = renderedStore({
-  id: 'hukut',
-  name: 'Hukut',
-  homepage: 'https://hukut.com',
-  // Published SearchAction: https://hukut.com/search/{search_term_string}
-  searchUrl: (query) => `https://hukut.com/search/${encodeURIComponent(query)}`,
-  waitFor: 'a[href*="/product"]',
-});
-
 export const smartdoko = renderedStore({
   id: 'smartdoko',
   name: 'SmartDoko',
@@ -28,6 +22,15 @@ export const smartdoko = renderedStore({
   waitFor: 'a[href*="/product"]',
 });
 
+/**
+ * ITTI is the weakest of these. Its own search API
+ * (`/api-proxy/product-list?type=search`) is reachable but returns
+ * `selling_price: 0` for every row, which is why its unrendered markup shows
+ * "रु NaN" - the shop itself displays no price on search results. Rendering is
+ * kept because per-product prices do exist and the page may fill them in, but
+ * expect this store to contribute nothing for many queries. That is a property
+ * of the shop, not a bug here.
+ */
 export const itti = renderedStore({
   id: 'itti',
   name: 'ITTI Computer World',

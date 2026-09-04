@@ -24,7 +24,7 @@ export class HttpError extends Error {
  * reset connections at random, so a single retry meaningfully improves the
  * hit rate without slowing the page down.
  */
-export async function request(url, { timeout = 9000, headers = {}, retries = 2 } = {}) {
+export async function request(url, { timeout = 9000, headers = {}, retries = 2, method = 'GET', body } = {}) {
   let lastError;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -33,6 +33,8 @@ export async function request(url, { timeout = 9000, headers = {}, retries = 2 }
 
     try {
       const res = await fetch(url, {
+        method,
+        body,
         signal: controller.signal,
         redirect: 'follow',
         headers: {
@@ -68,6 +70,21 @@ export async function getJson(url, options = {}) {
   const res = await request(url, {
     ...options,
     headers: { Accept: 'application/json, text/plain, */*', ...(options.headers || {}) },
+  });
+  return res.json();
+}
+
+/** POST a JSON body and parse a JSON response. */
+export async function postJson(url, body, options = {}) {
+  const res = await request(url, {
+    ...options,
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/plain, */*',
+      ...(options.headers || {}),
+    },
   });
   return res.json();
 }
