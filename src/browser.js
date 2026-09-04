@@ -134,7 +134,13 @@ export async function renderAndExtract(url, extract, { waitFor, timeout = NAV_TI
  * @param {Function} options.extract  runs in the page after navigation
  * @param {string} [options.waitFor]  selector to wait for on the results page
  */
-export async function renderFormFlow(url, { prepare, input, extract, waitFor, timeout = 40000 } = {}) {
+export async function renderFormFlow(url, {
+  prepare, input, extract, waitFor, timeout = 40000,
+  // Fare results stream in after the form is submitted - an OTA shows a
+  // spinner and fills the list over several seconds - so `extract` is polled
+  // until it returns something rather than run once against a half-built page.
+  pollUntilResults = true, pollFor = 25000, pollEvery = 1500,
+} = {}) {
   const browser = await getBrowser();
   const context = await browser.newContext({
     userAgent: UA,
@@ -163,7 +169,26 @@ export async function renderFormFlow(url, { prepare, input, extract, waitFor, ti
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(SETTLE_MS);
 
-    return { url: page.url(), data: await page.evaluate(extract) };
+    let data = await page.evaluate(extract);
+
+    if (pollUntilResults) {
+      const deadline = Date.now() + pollFor;
+      while ((!Array.isArray(data) || !data.length) && Date.now() < deadline) {
+        await page.waitForTimeout(pollEvery);
+        data = await page.evaluate(extract);
+      }
+    }
+
+    // The diagnostics travel with the result because "nothing found" has
+    // several very different causes: the site bounced us back to its
+    // homepage, it showed a "no flights" message, or our extraction missed
+    // rows that are on the page.
+    return {
+      url: page.url(),
+      title: await page.title().catch(() => ''),
+      bodyText: (await page.evaluate(() => document.body?.innerText ?? '').catch(() => '')).replace(/\s+/g, ' ').slice(0, 600),
+      data,
+    };
   } finally {
     await context.close().catch(() => {});
   }

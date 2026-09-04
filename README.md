@@ -102,6 +102,26 @@ a short table is explained rather than mysterious.
 
 ![Which shops were checked](docs/screenshot-store-panel.png)
 
+**The query is read for intent, not matched literally.** Shops phrase the same
+product half a dozen ways and shoppers type it a seventh, so `src/query.js`
+turns a raw query into a canonical form plus the wordings worth trying. Three
+searches that returned nothing before it existed, all reproduced live:
+
+| You type | What broke | What happens now |
+|---|---|---|
+| `samsung galaxy s26 ultra` | Daraz titles read "Samsung S26 Ultra" — no "Galaxy" | Brand and product-line words are **optional** when matching titles, so both spellings match |
+| `iphone 17 pm` | no title spells "pm" | Shorthand is expanded to `pro max` |
+| `samsng galaxy s26` | one missing letter, no results anywhere | Corrected against a known vocabulary before the store is asked, and single typos still match titles |
+
+Each store gets up to three wordings — as typed, corrected/expanded, then with
+the brand dropped (which is what Daraz's index actually answers) — and only
+while nothing relevant has come back. Whatever returns is still judged against
+the shopper's canonical intent, so this widens the net rather than loosening
+the standard, and the store panel names the wording that found the product.
+Digits are never "corrected": `s26` and `s25` are one edit apart and different
+phones. A title naming a different brand is rejected however well the model
+number lines up.
+
 **Accessories are filtered out.** Searching `iPhone 14 128GB` on Daraz returns
 page after page of phone cases at Rs. 200–900. Without filtering, "Best price"
 would land on a silicone cover. `src/relevance.js` requires ≥70% of the query's
@@ -113,7 +133,10 @@ case the rule inverts. Rows that match only part of the query are labelled
 **Suspiciously cheap rows are flagged, not hidden.** Anything under 35% of the
 median price for that search gets a "Price looks too low" tag and a warning
 about accessories, refurbished units and scam listings; the "Best price" badge
-skips those rows and lands on the cheapest credible one.
+skips those rows and lands on the cheapest credible one. Two rows are enough to
+make that call — a Daraz listing titled exactly "Samsung Galaxy S26 Ultra" at
+Rs. 1,744 sitting next to Hukut's Rs. 2,12,999 is precisely what the flag is
+for, and requiring three rows once let it take the badge.
 
 **Currency conversion is labelled.** Non-NPR prices are converted using live
 rates from `open.er-api.com` (cached an hour) and the row shows the original
@@ -316,6 +339,19 @@ installed, which separates a blocked shop from a broken adapter.
 `RENDER_DEBUG=1 npm start` to print what the browser actually saw for each
 search, which tells "the shop returned nothing" apart from "our extraction
 missed it" after a markup change.
+
+**Flight search finds no fares** — run the provider diagnostic:
+
+```bash
+npm run check:flights -- KTM PKR 2026-09-20
+```
+
+It prints, per provider, the URL the browser ended on, the page title, the
+visible page text and any rows recognised. That separates the three real
+causes: the site bounced the search back to its homepage, the site says there
+are no flights on that route and date, or the fares are on the page and the row
+extraction missed them. Only the third is a bug here, and the output shows the
+markup needed to fix it.
 
 ## Limitations
 

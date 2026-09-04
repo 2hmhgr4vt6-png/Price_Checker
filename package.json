@@ -13,7 +13,8 @@
     "dev": "node --watch server.js",
     "check:stores": "node scripts/check-stores.js",
     "test": "node --test test/*.test.js",
-    "setup:browser": "npm i playwright && npx playwright install chromium"
+    "setup:browser": "npm i playwright && npx playwright install chromium",
+    "check:flights": "node scripts/check-flights.js"
   },
   "keywords": [
     "nepal",

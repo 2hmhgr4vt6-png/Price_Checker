@@ -69,6 +69,7 @@ function renderStoreStatus(payload) {
   const items = payload.stores.map((store) => {
     if (store.status === 'ok') {
       return `<li><strong>${escapeHtml(store.name)}</strong> — <span class="ok">${store.count} listing${store.count === 1 ? '' : 's'}</span>
+        ${store.usedVariant ? `<span class="miss">(found by searching &ldquo;${escapeHtml(store.usedVariant)}&rdquo;)</span>` : ''}
         ${store.filtered ? `<span class="miss">(${store.filtered} unrelated listing${store.filtered === 1 ? '' : 's'} filtered out)</span>` : ''}</li>`;
     }
     if (store.status === 'no_results') {

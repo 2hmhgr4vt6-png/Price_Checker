@@ -1,14 +1,19 @@
 /**
- * Relevance scoring.
+ * Relevance scoring: does this listing answer what the shopper asked for?
  *
- * Nepali marketplace search is noisy: querying "iPhone 14 128GB" on Daraz
- * returns phone cases, screen protectors and "combo offers" priced at a few
- * hundred rupees. Without filtering, the cheapest row - and therefore the
- * "Best Price" badge - would be a Rs. 299 silicone cover. This module keeps
- * accessories out unless the shopper actually asked for one.
+ * Two jobs. First, keep accessories out: querying "iPhone 14 128GB" on Daraz
+ * returns pages of cases, films and camera rings at a few hundred rupees, and
+ * without filtering the "Best price" badge would land on a silicone cover.
+ *
+ * Second, be tolerant of how differently shops write the same product. Query
+ * understanding lives in ./query.js - brand and product-line words are
+ * optional, abbreviations are expanded, and single typos still match - so a
+ * search for "Samsung Galaxy S26 Ultra" matches a title that reads only
+ * "Samsung S26 Ultra".
  */
+import { canonicalise, normalise, tokenise, tokenMatches } from './query.js';
 
-const STOPWORDS = new Set(['the', 'a', 'an', 'and', 'for', 'with', 'in', 'of', 'new']);
+export { normalise, tokenise };
 
 const ACCESSORY_WORDS = [
   'case', 'cover', 'casing', 'pouch', 'skin', 'sleeve', 'bumper',
@@ -23,53 +28,60 @@ const ACCESSORY_WORDS = [
   'lens', 'ring', 'film', 'grip', 'dock', 'sim ejector', 'keyboard cover',
 ];
 
-/** Lowercase, drop punctuation, and glue "128 gb" into "128gb" so both match. */
-export function normalise(text = '') {
-  const base = String(text).toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
-  return base.replace(/(\d)\s+(gb|tb|mb|inch|in|mah|hz|w|k)\b/g, '$1$2');
-}
-
-export function tokenise(text) {
-  return normalise(text).split(' ').filter((token) => token && !STOPWORDS.has(token));
-}
+/**
+ * Phone and laptop brands are mutually exclusive: if the shopper named one and
+ * the title names a different one, it is the wrong product however well the
+ * model number lines up.
+ */
+const BRANDS = new Set([
+  'samsung', 'apple', 'xiaomi', 'oneplus', 'oppo', 'vivo', 'realme', 'honor',
+  'huawei', 'nokia', 'motorola', 'lenovo', 'asus', 'acer', 'dell', 'hp', 'msi',
+  'lg', 'sony', 'tecno', 'infinix', 'itel', 'google', 'nothing', 'philips',
+]);
 
 const mentionsAccessory = (text) => ACCESSORY_WORDS.some((word) => text.includes(word));
 
+function brandsConflict(queryTokens, titleTokens) {
+  const queryBrands = queryTokens.filter((token) => BRANDS.has(token));
+  const titleBrands = titleTokens.filter((token) => BRANDS.has(token));
+  if (!queryBrands.length || !titleBrands.length) return false;
+  return !titleBrands.some((brand) => queryBrands.includes(brand));
+}
+
 /**
  * @returns {{ score: number, matched: string[], missing: string[], accessory: boolean }}
+ *   `score` counts only the required tokens: a brand or line word the shop left
+ *   out of its title is not evidence against the listing.
  */
 export function scoreListing(query, productName) {
-  const queryTokens = [...new Set(tokenise(query))];
+  const { tokens, required, optional } = canonicalise(query);
+  const titleTokens = tokenise(productName);
   const haystack = normalise(productName);
-  const padded = ` ${haystack} `;
 
-  const matched = [];
-  const missing = [];
-  for (const token of queryTokens) {
-    // Word-boundary match, so "14" does not match "144" and "pro" not "product".
-    (padded.includes(` ${token} `) || new RegExp(`\\b${token}\\b`).test(haystack) ? matched : missing).push(token);
-  }
+  const matched = required.filter((token) => tokenMatches(token, titleTokens));
+  const missing = required.filter((token) => !matched.includes(token));
 
   const queryWantsAccessory = mentionsAccessory(normalise(query));
   const accessory = !queryWantsAccessory && mentionsAccessory(haystack);
 
   return {
-    score: queryTokens.length ? matched.length / queryTokens.length : 0,
-    matched,
+    score: required.length ? matched.length / required.length : 0,
+    matched: [...matched, ...optional.filter((token) => tokenMatches(token, titleTokens))],
     missing,
     accessory,
+    wrongBrand: brandsConflict(tokens, titleTokens),
   };
 }
 
 /**
- * Keep listings that match most of the query and are not off-topic accessories.
+ * Keep listings that match what was asked for and are not off-topic.
  *
- * 0.7 is the sweet spot found against live Daraz results: it still tolerates
- * stores that word titles differently ("Latitude 3420 Core i5" for "Dell
- * laptop i5"), while rejecting near-misses that change the product category -
- * a "Dell tiny PC i5" desktop no longer answers a search for a Dell laptop.
+ * 0.7 is the threshold found against live Daraz results: forgiving enough for
+ * titles worded differently ("Latitude 3420 Core i5" for "Dell laptop i5"),
+ * strict enough to reject a near-miss that changes the product category - a
+ * "Dell tiny PC i5" desktop no longer answers a search for a Dell laptop.
  */
 export function isRelevant(query, productName, minScore = 0.7) {
-  const { score, accessory } = scoreListing(query, productName);
-  return score >= minScore && !accessory;
+  const { score, accessory, wrongBrand } = scoreListing(query, productName);
+  return score >= minScore && !accessory && !wrongBrand;
 }

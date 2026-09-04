@@ -32,7 +32,12 @@ const ORIGIN = 'https://sastotickets.com';
 function fillSearchForm(input) {
   const set = (id, value) => {
     const field = document.getElementById(id);
-    if (field) field.value = value;
+    if (!field) return;
+    field.value = value;
+    // The page's own scripts listen for these; a bare `.value =` assignment
+    // fires nothing, so its state would stay out of step with the form.
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
   };
 
   set('depart_city', input.from);
@@ -43,8 +48,14 @@ function fillSearchForm(input) {
   set('children', String(input.children));
   set('infant', String(input.infants));
   set('currency', 'NPR');
+  set('traveller', `${input.adults} Travellers`);
 
-  document.getElementById('form-search-flights')?.submit();
+  // Prefer the site's own search button: it runs their validation and
+  // whatever state their scripts set up before submitting. Fall back to
+  // submitting the form directly if the button is not there.
+  const button = document.getElementById('btnFlightSearch');
+  if (button) button.click();
+  else document.getElementById('form-search-flights')?.submit();
 }
 /* c8 ignore stop */
 
@@ -60,7 +71,7 @@ export default {
       throw new Error('Needs headless rendering - run: npm run setup:browser');
     }
 
-    const { url, data } = await renderFormFlow(ORIGIN, {
+    const { url, title, bodyText, data } = await renderFormFlow(ORIGIN, {
       prepare: fillSearchForm,
       input: { from, to, date, adults, children, infants },
       extract: extractFareRows,
@@ -69,8 +80,24 @@ export default {
     });
 
     if (process.env.RENDER_DEBUG) {
-      console.log(`[flights] sastotickets -> ${url} (${data?.length ?? 0} raw rows)`);
+      console.log(`[flights] sastotickets -> ${url}`);
+      console.log(`[flights] title: ${title}`);
+      console.log(`[flights] rows: ${data?.length ?? 0}`);
+      console.log(`[flights] page text: ${bodyText}`);
       for (const row of (data ?? []).slice(0, 5)) console.log(`[flights]   ${row.priceText} ${row.airline} ${row.departTime}`);
+    }
+
+    // Distinguish the ways this can come back empty, so the UI can say
+    // something true instead of "no fares".
+    if (!data?.length) {
+      const landedHome = new URL(url).pathname === '/' || /^\/?$/.test(new URL(url).pathname);
+      if (landedHome) {
+        throw new Error('Sastotickets rejected the search and returned to its homepage');
+      }
+      if (/no (flights?|results?|fares?)/i.test(bodyText ?? '')) {
+        return [];
+      }
+      throw new Error(`Results page loaded (${url}) but no fare rows were recognised`);
     }
 
     return (data ?? [])

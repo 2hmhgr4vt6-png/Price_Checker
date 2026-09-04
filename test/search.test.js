@@ -20,6 +20,19 @@ const fakeStore = (id, listings, { fail = false } = {}) => ({
   },
 });
 
+/** A shop whose search engine only understands one particular wording. */
+const pickyStore = (id, wording, listings) => ({
+  id,
+  name: id,
+  homepage: `https://${id}.test`,
+  kind: 'retailer',
+  queries: [],
+  async search(query) {
+    this.queries.push(query);
+    return query === wording ? listings : [];
+  },
+});
+
 function useStores(...replacements) {
   const original = stores.splice(0, stores.length, ...replacements);
   return () => stores.splice(0, stores.length, ...original);
@@ -83,4 +96,43 @@ test('converts foreign currency to NPR and records the rate', async () => {
 
 test('rejects an empty query', async () => {
   await assert.rejects(() => searchAllStores(' '), /at least 2 characters/);
+});
+
+test('rewords the query when a shop finds nothing for how the shopper typed it', async () => {
+  // Daraz indexes "S26 Ultra" and returns nothing for the brand-led phrasing.
+  const store = pickyStore('picky', 's26 ultra', [
+    { productName: 'Samsung S26 Ultra 12/256GB', amount: 212999, currency: 'NPR', url: 'https://p/1', availability: 'in_stock' },
+  ]);
+  const restore = useStores(store);
+
+  try {
+    const payload = await searchAllStores('samsung galaxy s26 ultra', { fresh: true });
+
+    assert.equal(payload.resultCount, 1);
+    assert.deepEqual(store.queries, ['samsung galaxy s26 ultra', 's26 ultra']);
+    // The panel says which wording found it.
+    assert.equal(payload.stores[0].usedVariant, 's26 ultra');
+  } finally {
+    restore();
+  }
+});
+
+test('flags a too-cheap listing even when only two rows came back', async () => {
+  // A real Daraz row: titled exactly "Samsung Galaxy S26 Ultra", priced at
+  // Rs. 1,744 next to Hukut's Rs. 2,12,999.
+  const restore = useStores(
+    fakeStore('scammy', [{ productName: 'Samsung Galaxy S26 Ultra', amount: 1744, currency: 'NPR', url: 'https://s/1', availability: 'in_stock' }]),
+    fakeStore('honest', [{ productName: 'Samsung Galaxy S26 Ultra', amount: 212999, currency: 'NPR', url: 'https://h/1', availability: 'in_stock' }]),
+  );
+
+  try {
+    const payload = await searchAllStores('samsung galaxy s26 ultra', { fresh: true });
+
+    assert.equal(payload.results[0].suspicious, true);
+    assert.equal(payload.results[0].bestPrice, undefined);
+    assert.equal(payload.cheapest.priceNpr, 212999);
+    assert.ok(payload.warnings.some((warning) => /below/i.test(warning)));
+  } finally {
+    restore();
+  }
 });

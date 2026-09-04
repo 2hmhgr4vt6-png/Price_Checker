@@ -12,6 +12,7 @@
 import { enabledStores, stores } from './stores/index.js';
 import { currencyConverter } from './fx.js';
 import { isRelevant, scoreListing } from './relevance.js';
+import { queryVariants } from './query.js';
 import { browserAvailable } from './browser.js';
 
 const PER_STORE_TIMEOUT_MS = 9000;
@@ -20,6 +21,10 @@ const PER_STORE_TIMEOUT_MS = 9000;
 const BROWSER_STORE_TIMEOUT_MS = 28000;
 const PER_STORE_LIMIT = 24;
 const CACHE_TTL_MS = 10 * 60 * 1000;
+// Up to three phrasings per store, tried only while nothing relevant has come
+// back. More would multiply every search's latency by the number of wordings
+// we can imagine.
+const MAX_QUERY_VARIANTS = 3;
 const SUSPICIOUS_RATIO = 0.35; // under 35% of the median => flag, do not hide
 
 const cache = new Map();
@@ -45,7 +50,26 @@ async function searchOneStore(store, query, convert) {
   const timeout = store.needsBrowser ? BROWSER_STORE_TIMEOUT_MS : PER_STORE_TIMEOUT_MS;
 
   try {
-    const listings = await store.search(query, { limit: PER_STORE_LIMIT, timeout });
+    // Shops phrase products differently, so if the shopper's own wording finds
+    // nothing here, one reworded attempt is made - "samsung s26 ultra" also
+    // tried as "samsung galaxy s26 ultra". Whatever comes back is still judged
+    // against the shopper's intent, so this widens the net, not the standard.
+    const variants = queryVariants(query).slice(0, MAX_QUERY_VARIANTS);
+    let listings = [];
+    let usedVariant = variants[0];
+
+    for (const variant of variants) {
+      const attempt = await store.search(variant, { limit: PER_STORE_LIMIT, timeout });
+      usedVariant = variant;
+      if ((attempt ?? []).some((listing) => listing?.productName && isRelevant(query, listing.productName))) {
+        listings = attempt;
+        break;
+      }
+      // Keep the first non-empty response so a store that returned only
+      // near-misses still reports honestly instead of looking unreachable.
+      if (!listings.length) listings = attempt ?? [];
+    }
+
     const rows = [];
     let filtered = 0;
 
@@ -88,6 +112,8 @@ async function searchOneStore(store, query, convert) {
       rows,
       count: rows.length,
       filtered,
+      // Surfaced in the store panel when a rewording is what found the product.
+      usedVariant: usedVariant !== query ? usedVariant : null,
       ms: Date.now() - startedAt,
     };
   } catch (error) {
@@ -106,7 +132,11 @@ async function searchOneStore(store, query, convert) {
 
 function buildWarnings(rows, stores) {
   const warnings = [];
-  if (rows.length >= 3) {
+  // Two rows are enough to judge: a Daraz listing titled exactly "Samsung
+  // Galaxy S26 Ultra" at Rs. 1,744 next to Hukut's Rs. 2,12,999 is precisely
+  // the scam listing this flag exists for, and requiring three rows let it
+  // take the Best price badge.
+  if (rows.length >= 2) {
     const mid = median(rows.map((row) => row.priceNpr));
     for (const row of rows) {
       if (row.priceNpr < mid * SUSPICIOUS_RATIO) {
@@ -177,8 +207,9 @@ export async function searchAllStores(query, { fresh = false } = {}) {
     results: rows,
     cheapest: best ? { storeName: best.storeName, priceNpr: best.priceNpr, productName: best.productName, url: best.url } : null,
     priceRange: rows.length ? { min: rows[0].priceNpr, max: rows[rows.length - 1].priceNpr } : null,
-    stores: storeResults.map(({ store, status, count, filtered, error, ms }) => ({
-      id: store.id, name: store.name, homepage: store.homepage, status, count, filtered: filtered ?? 0, error: error ?? null, ms,
+    stores: storeResults.map(({ store, status, count, filtered, error, ms, usedVariant }) => ({
+      id: store.id, name: store.name, homepage: store.homepage, status, count,
+      filtered: filtered ?? 0, error: error ?? null, usedVariant: usedVariant ?? null, ms,
     })),
     browserRendering: await browserAvailable(),
     disabledStores: disabledStores(),
