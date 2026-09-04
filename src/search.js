@@ -12,8 +12,12 @@
 import { enabledStores, stores } from './stores/index.js';
 import { currencyConverter } from './fx.js';
 import { isRelevant, scoreListing } from './relevance.js';
+import { browserAvailable } from './browser.js';
 
 const PER_STORE_TIMEOUT_MS = 9000;
+// Rendering a JS-only storefront in headless Chromium is inherently slower
+// than an HTTP call, so those adapters get their own budget.
+const BROWSER_STORE_TIMEOUT_MS = 28000;
 const PER_STORE_LIMIT = 24;
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const SUSPICIOUS_RATIO = 0.35; // under 35% of the median => flag, do not hide
@@ -38,9 +42,10 @@ function dedupe(results) {
 
 async function searchOneStore(store, query, convert) {
   const startedAt = Date.now();
+  const timeout = store.needsBrowser ? BROWSER_STORE_TIMEOUT_MS : PER_STORE_TIMEOUT_MS;
 
   try {
-    const listings = await store.search(query, { limit: PER_STORE_LIMIT, timeout: PER_STORE_TIMEOUT_MS });
+    const listings = await store.search(query, { limit: PER_STORE_LIMIT, timeout });
     const rows = [];
     let filtered = 0;
 
@@ -159,8 +164,10 @@ export async function searchAllStores(query, { fresh = false } = {}) {
 
   const warnings = buildWarnings(rows, storeResults);
 
-  // "Best Price" must not land on a flagged row.
-  const best = rows.find((row) => !row.suspicious) ?? rows[0];
+  // "Best Price" must be something you can actually buy: never a flagged row,
+  // and never a published-price reference (an article is not a shop).
+  const buyable = rows.filter((row) => row.storeKind !== 'reference');
+  const best = buyable.find((row) => !row.suspicious) ?? buyable[0];
   if (best) best.bestPrice = true;
 
   const payload = {
@@ -173,6 +180,7 @@ export async function searchAllStores(query, { fresh = false } = {}) {
     stores: storeResults.map(({ store, status, count, filtered, error, ms }) => ({
       id: store.id, name: store.name, homepage: store.homepage, status, count, filtered: filtered ?? 0, error: error ?? null, ms,
     })),
+    browserRendering: await browserAvailable(),
     disabledStores: disabledStores(),
     fx: convert.meta,
     warnings,

@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { searchAllStores } from './src/search.js';
 import { stores, enabledStores } from './src/stores/index.js';
+import { closeBrowser } from './src/browser.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -103,6 +104,16 @@ const server = createServer(async (req, res) => {
 
   return serveStatic(res, url.pathname);
 });
+
+// The shared headless browser outlives individual requests, so shut it down
+// with the server rather than leaking a Chromium process.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, async () => {
+    server.close();
+    await closeBrowser();
+    process.exit(0);
+  });
+}
 
 server.listen(PORT, HOST, () => {
   console.log(`Nepali Price Checker running at http://localhost:${PORT}`);

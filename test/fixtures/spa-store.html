@@ -1,0 +1,29 @@
+<!doctype html>
+<!--
+  Fixture: a client-rendered Nepali storefront, the shape hukut / smartdoko /
+  itti actually ship. The initial HTML has NO prices in it - the grid is built
+  by script after load - which is exactly why those stores need rendering.
+-->
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture Store — search</title></head>
+<body>
+  <h1>Search results</h1>
+  <div id="grid">Loading…</div>
+  <script>
+    const products = [
+      { slug: 'iphone-17-128gb', name: 'Apple iPhone 17 128GB Black', price: 'Rs. 1,73,499', stock: 'In stock' },
+      { slug: 'iphone-17-pro-256gb', name: 'Apple iPhone 17 Pro 256GB', price: 'NPR 2,21,299', stock: 'Out of stock' },
+      { slug: 'iphone-17-case', name: 'iPhone 17 Silicone Case', price: 'Rs. 2,900', stock: 'In stock' },
+    ];
+    setTimeout(() => {
+      document.getElementById('grid').innerHTML = products.map((p) => `
+        <a href="/product/${p.slug}">
+          <div>${p.name}</div>
+          <div>-12%</div>
+          <div>${p.price}</div>
+          <div>${p.stock}</div>
+        </a>`).join('');
+    }, 300);
+  </script>
+</body>
+</html>

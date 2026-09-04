@@ -123,6 +123,10 @@ body {
 .notice { display: flex; gap: 10px; padding: 12px 14px; margin-bottom: 10px; border-radius: 10px; font-size: .9rem; border: 1px solid; }
 .notice--warn { background: #fff8ec; border-color: #f2d8a7; color: var(--warn); }
 .notice--info { background: #eef3fc; border-color: #cfdcf5; color: var(--blue); }
+.notice code, .store-status code {
+  padding: 1px 5px; border-radius: 5px; background: rgba(0, 56, 147, .08);
+  font-size: .85em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
 
 table.results { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
 table.results th, table.results td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -141,6 +145,7 @@ table.results tbody tr.is-best { background: #f4fbf6; }
 .tag--closest { background: #eef3fc; color: var(--blue); }
 .tag--risk { background: #fdeaec; color: var(--bad); }
 .tag--used { background: #f1eefb; color: #5b3fb5; }
+.tag--ref { background: #fff4e5; color: var(--warn); }
 .tag--seller { background: #f2f4f9; color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 500; }
 
 .stock { font-size: .85rem; font-weight: 600; }

@@ -24,14 +24,22 @@ export function stripTags(html = '') {
   return decodeEntities(html.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
-/** Return every chunk of HTML that sits inside an element carrying `className`. */
+/**
+ * Return every chunk of HTML that sits inside an element carrying `className`.
+ *
+ * The class must appear as a whole token in the class list: asking for
+ * "common-item" must not match "common-item-wrapper", or a grid container
+ * would be returned as one giant block instead of the cards inside it.
+ */
 export function blocksWithClass(html, className, limit = 60) {
   const blocks = [];
-  const opener = new RegExp(`<(\\w+)[^>]*class="[^"]*\\b${className}\\b[^"]*"[^>]*>`, 'gi');
+  const opener = /<(\w+)\b[^>]*\bclass="([^"]*)"[^>]*>/gi;
   let match;
 
   while ((match = opener.exec(html)) && blocks.length < limit) {
-    const tag = match[1];
+    const [, tag, classList] = match;
+    if (!classList.split(/\s+/).includes(className)) continue;
+
     const start = match.index;
     const nested = new RegExp(`<${tag}\\b[^>]*>|</${tag}>`, 'gi');
     nested.lastIndex = opener.lastIndex;

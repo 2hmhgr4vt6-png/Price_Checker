@@ -74,6 +74,10 @@ function renderStoreStatus(payload) {
     if (store.status === 'no_results') {
       return `<li><strong>${escapeHtml(store.name)}</strong> — <span class="miss">no matching product found</span></li>`;
     }
+    if (/setup:browser/.test(store.error ?? '')) {
+      return `<li><strong>${escapeHtml(store.name)}</strong> — <span class="miss">skipped: this shop is a
+        JavaScript app and needs headless rendering (<code>npm run setup:browser</code>)</span></li>`;
+    }
     return `<li><strong>${escapeHtml(store.name)}</strong> — <span class="err">could not be reached</span>
       <span class="miss">(${escapeHtml(store.error ?? 'unavailable')})</span></li>`;
   });
@@ -120,6 +124,13 @@ function renderWarnings(payload) {
       (${escapeHtml(payload.fx.source)}${payload.fx.approximate ? ', approximate' : ''}).</span></div>`);
   }
 
+  if (payload.browserRendering === false
+      && payload.stores.some((store) => /setup:browser/.test(store.error ?? ''))) {
+    notices.push(`<div class="notice notice--info"><span aria-hidden="true">🧩</span><span>
+      Hukut, SmartDoko, ITTI and Hamrobazar are JavaScript-only storefronts, so they were skipped.
+      Run <code>npm run setup:browser</code> once to include them.</span></div>`);
+  }
+
   warningsBox.innerHTML = notices.join('');
 }
 
@@ -156,9 +167,11 @@ function renderRows(rows) {
     if (!row.exactMatch) addTag('Closest match', 'closest');
     if (row.suspicious) addTag('Price looks too low', 'risk');
     if (row.storeKind === 'classifieds') addTag('Second-hand', 'used');
+    if (row.storeKind === 'reference') addTag('Official price, not a shop', 'ref');
     if (row.seller) addTag(`Sold by ${row.seller}`, 'seller');
 
     const link = node.querySelector('.btn-view');
+    if (row.storeKind === 'reference') link.textContent = 'Read the source';
     link.href = row.url;
     link.setAttribute('aria-label', `View ${row.productName} on ${row.storeName}`);
 
