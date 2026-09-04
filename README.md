@@ -235,6 +235,27 @@ scripts/check-stores.js  reachability diagnostic
 test/                  node:test unit tests
 ```
 
+## Troubleshooting
+
+**`EADDRINUSE: address already in use 0.0.0.0:3000`** — an earlier `npm start`
+is still running, probably in another terminal tab. Stop it rather than
+switching ports: the old process is serving the previous version of the code,
+so reusing it will hide your changes.
+
+```bash
+lsof -ti:3000 | xargs kill    # macOS / Linux
+npm start
+```
+
+**A shop shows "could not be reached"** — run `npm run check:stores -- "<product>"`.
+It prints what your network reaches and whether headless rendering is
+installed, which separates a blocked shop from a broken adapter.
+
+**A JavaScript-only shop renders but returns nothing** — run with
+`RENDER_DEBUG=1 npm start` to print what the browser actually saw for each
+search, which tells "the shop returned nothing" apart from "our extraction
+missed it" after a markup change.
+
 ## Limitations
 
 - Only listings the shops return are shown; coverage is as good as the

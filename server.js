@@ -115,6 +115,20 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
   });
 }
 
+// A stale `npm start` in another terminal is the usual cause here, and the
+// raw EADDRINUSE stack trace tells nobody that.
+server.on('error', (error) => {
+  if (error.code !== 'EADDRINUSE') throw error;
+
+  console.error(`\nPort ${PORT} is already in use — most likely an earlier "npm start" is still running.`);
+  console.error('That old process serves the previous version of the code, so reusing it hides your changes.');
+  console.error('\nStop it, then start again:');
+  console.error(`  lsof -ti:${PORT} | xargs kill      # macOS / Linux`);
+  console.error('  npm start');
+  console.error(`\nOr run this one somewhere else:  PORT=${PORT + 1} npm start\n`);
+  process.exit(1);
+});
+
 server.listen(PORT, HOST, () => {
   console.log(`Nepali Price Checker running at http://localhost:${PORT}`);
   console.log(`Live stores: ${enabledStores().map((store) => store.name).join(', ')}`);
