@@ -61,6 +61,43 @@ function guessedArticles(query) {
   ];
 }
 
+/**
+ * Derive price-article URLs from *any* matching article in the search results.
+ *
+ * Gadgetbyte's search often ranks a device's review, drop test and rumour
+ * posts above its price page, and sometimes omits the price page entirely - a
+ * search for "samsung s26 ultra" returns five Ultra articles, none of them the
+ * price one. But those articles share the product's slug prefix, so
+ * /samsung-galaxy-s26-ultra-review/ yields
+ * /samsung-galaxy-s26-ultra-price-in-nepal/, which does exist.
+ *
+ * This also covers words the shopper left out: the query "samsung s26 ultra"
+ * cannot produce the slug "samsung-galaxy-s26-ultra" on its own.
+ */
+function derivedArticles(html, query) {
+  const tokens = tokenise(query);
+  if (!tokens.length) return [];
+
+  const urls = new Set();
+
+  for (const match of unescapeFlight(html).matchAll(/href="(\/[a-z0-9-]{6,90}\/)"/g)) {
+    const words = match[1].replace(/[/-]+/g, ' ').trim().split(' ').filter(Boolean);
+    if (!tokens.every((token) => words.includes(token))) continue;
+
+    // Drop the trailing topic words ("review", "drop test", "rumors",
+    // "price in nepal") to leave the product's own slug prefix.
+    let end = words.length;
+    while (end > 0 && !tokens.includes(words[end - 1])) end -= 1;
+    if (!end) continue;
+
+    const prefix = words.slice(0, end).join('-');
+    urls.add(`${ORIGIN}/${prefix}-price-in-nepal/`);
+    urls.add(`${ORIGIN}/${prefix}-price-nepal/`);
+  }
+
+  return [...urls];
+}
+
 /** Article slugs on the search page, best candidates first. */
 function candidateArticles(html, query) {
   const tokens = tokenise(query);
@@ -165,13 +202,19 @@ export default {
     // Try the predictable URLs first, then whatever the site's search offers.
     const searchHtml = await getText(`${ORIGIN}/search/?q=${encodeURIComponent(query)}`, { timeout })
       .catch(() => '');
-    const articles = [...new Set([...guessedArticles(query), ...candidateArticles(searchHtml, query)])];
+    const articles = [...new Set([
+      ...guessedArticles(query),
+      ...candidateArticles(searchHtml, query),
+      ...derivedArticles(searchHtml, query),
+    ])];
 
     const rows = [];
     let reached = 0;
+    let tried = 0;
 
     for (const articleUrl of articles) {
-      if (rows.length >= limit || reached >= 3) break;
+      if (rows.length >= limit || reached >= 3 || tried >= 8) break;
+      tried += 1;
 
       // A guessed URL that does not exist 404s; that is expected, not an error.
       const html = await getText(articleUrl, { timeout }).catch(() => null);
@@ -202,3 +245,4 @@ export default {
 export const __parseArticle = pricesFromArticle;
 export const __candidateArticles = candidateArticles;
 export const __guessedArticles = guessedArticles;
+export const __derivedArticles = derivedArticles;

@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { __parseArticle, __candidateArticles } from '../src/stores/gadgetbyte.js';
+import { __parseArticle, __candidateArticles, __derivedArticles } from '../src/stores/gadgetbyte.js';
 
 const PLAIN_ARTICLE = `
 <table><tbody>
@@ -70,4 +70,23 @@ test('prefers the closest article slug', () => {
   // A different model, and a non-price article, are not candidates at all.
   assert.ok(!candidates.some((url) => url.includes('iphone-16')));
   assert.ok(!candidates.some((url) => url.includes('review')));
+});
+
+test('derives the price URL from sibling articles when search omits it', () => {
+  // What Gadgetbyte's search really returns for "samsung s26 ultra": five
+  // Ultra articles, not one of them the price page.
+  const html = `
+    <a href="/samsung-galaxy-s26-ultra-review/">x</a>
+    <a href="/samsung-galaxy-s26-ultra-drop-test/">x</a>
+    <a href="/samsung-galaxy-s26-ultra-privacy-display-feature/">x</a>
+    <a href="/samsung-galaxy-s26-fe-price-in-nepal/">x</a>
+    <a href="/samsung-galaxy-s26-plus-price-nepal/">x</a>`;
+
+  const derived = __derivedArticles(html, 'samsung s26 ultra');
+
+  // The Ultra's price page, reconstructed from its review slug - including the
+  // "galaxy" the shopper never typed.
+  assert.ok(derived.includes('https://www.gadgetbytenepal.com/samsung-galaxy-s26-ultra-price-in-nepal/'));
+  // Other models in the same result set must not be dragged in.
+  assert.ok(!derived.some((url) => url.includes('-fe-') || url.includes('-plus-')));
 });
