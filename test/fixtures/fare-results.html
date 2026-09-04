@@ -1,0 +1,46 @@
+<!doctype html>
+<!--
+  Fixture: an OTA fare results page in the shape these sites actually render -
+  a row per flight, prices and times inside nested markup, plus the noise that
+  a naive price scraper would wrongly pick up: a promo banner, a baggage-fee
+  table with prices but no times, and a schedule block with times but no price.
+-->
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture OTA — KTM to PKR</title></head>
+<body>
+  <div class="promo">Apply promo code SAVE to get NPR 300 off your booking!</div>
+
+  <div class="results">
+    <div class="flight-row">
+      <div class="airline-name">Buddha Air</div>
+      <div class="flight-code">U4 601</div>
+      <div class="times"><span>07:25</span> — <span>07:50</span></div>
+      <div class="fare">NPR 5,499</div>
+      <a href="/book/u4-601">Select</a>
+    </div>
+
+    <div class="flight-row">
+      <div class="airline-name">Yeti Airlines</div>
+      <div class="flight-code">YT 673</div>
+      <div class="times"><span>09:10</span> — <span>09:35</span></div>
+      <div class="fare">NPR 4,950</div>
+      <a href="/book/yt-673">Select</a>
+    </div>
+
+    <div class="flight-row">
+      <div class="airline-name">Shree Airlines</div>
+      <div class="flight-code">SHA 502</div>
+      <div class="times"><span>14:05</span> — <span>14:30</span></div>
+      <div class="fare">Rs. 6,120</div>
+      <a href="/book/sha-502">Select</a>
+    </div>
+  </div>
+
+  <table class="baggage">
+    <tr><td>Extra baggage per kg</td><td>NPR 250</td></tr>
+    <tr><td>Seat selection</td><td>NPR 500</td></tr>
+  </table>
+
+  <div class="schedule">Airport check-in opens 06:00 and closes 07:00.</div>
+</body>
+</html>

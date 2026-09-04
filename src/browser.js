@@ -119,6 +119,56 @@ export async function renderAndExtract(url, extract, { waitFor, timeout = NAV_TI
   }
 }
 
+/**
+ * Open `url`, run `prepare` in the page (typically filling and submitting a
+ * search form), wait for the resulting navigation, then run `extract`.
+ *
+ * Flight fares only exist behind a submitted form - no Nepali airline or OTA
+ * exposes a fare deep link or a public fare API - so this is the only way to
+ * read them without an airline distribution contract.
+ *
+ * @param {string} url
+ * @param {object} options
+ * @param {Function} options.prepare  runs in the page; receives `input`
+ * @param {object} options.input      plain JSON passed to `prepare`
+ * @param {Function} options.extract  runs in the page after navigation
+ * @param {string} [options.waitFor]  selector to wait for on the results page
+ */
+export async function renderFormFlow(url, { prepare, input, extract, waitFor, timeout = 40000 } = {}) {
+  const browser = await getBrowser();
+  const context = await browser.newContext({
+    userAgent: UA,
+    locale: 'en-NP',
+    viewport: { width: 1366, height: 1400 },
+  });
+  const page = await context.newPage();
+
+  await page.route('**/*', (route) => {
+    const type = route.request().resourceType();
+    return type === 'image' || type === 'font' || type === 'media'
+      ? route.abort()
+      : route.continue();
+  });
+
+  try {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+
+    // Submitting navigates, so start waiting before triggering it.
+    const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout })
+      .catch(() => null);
+    await page.evaluate(prepare, input);
+    await navigation;
+
+    if (waitFor) await page.waitForSelector(waitFor, { timeout: 15000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(SETTLE_MS);
+
+    return { url: page.url(), data: await page.evaluate(extract) };
+  } finally {
+    await context.close().catch(() => {});
+  }
+}
+
 export async function closeBrowser() {
   if (!browserPromise) return;
   const browser = await browserPromise.catch(() => null);

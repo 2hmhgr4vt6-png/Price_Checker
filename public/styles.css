@@ -21,6 +21,11 @@
 
 * { box-sizing: border-box; }
 
+/* The forms below set `display: flex`, which outranks the user-agent rule for
+   [hidden] and left the hidden panel on screen. Mode switching depends on
+   this, so make it explicit. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: var(--font);
@@ -57,6 +62,64 @@ body {
 .hero { padding: 28px 0 8px; }
 .hero h1 { margin: 0 0 8px; font-size: clamp(1.5rem, 4.5vw, 2.25rem); letter-spacing: -.02em; }
 .hero__sub { margin: 0 0 20px; color: var(--muted); max-width: 60ch; }
+
+/* ---------- mode switcher ---------- */
+.modes { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 16px; background: #e9edf4; border-radius: 999px; }
+.mode {
+  font: inherit; font-size: .9rem; font-weight: 600; padding: 9px 20px; cursor: pointer;
+  color: var(--muted); background: transparent; border: 0; border-radius: 999px;
+  transition: background .15s ease, color .15s ease;
+}
+.mode:hover { color: var(--ink); }
+.mode.is-active { background: var(--card); color: var(--crimson); box-shadow: var(--shadow); }
+.mode:focus-visible { outline: 3px solid rgba(0, 56, 147, .35); outline-offset: 1px; }
+
+/* ---------- flight search ---------- */
+.flight-search {
+  padding: 16px; background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.flight-search__row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 5px; position: relative; min-width: 0; }
+.field label { font-size: .75rem; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.field input, .field select {
+  font: inherit; padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--card); color: var(--ink); min-width: 0;
+}
+.field input:focus-visible, .field select:focus-visible {
+  outline: 3px solid rgba(0, 56, 147, .3); outline-offset: 1px; border-color: var(--blue);
+}
+.field--airport { flex: 1 1 190px; }
+.field--date { flex: 0 1 165px; }
+.field--pax { flex: 0 1 105px; }
+.flight-search__go {
+  flex: 0 0 auto; padding: 12px 22px; font: inherit; font-weight: 650; color: #fff;
+  background: var(--crimson); border: 0; border-radius: 9px; cursor: pointer;
+}
+.flight-search__go:hover:not(:disabled) { background: var(--crimson-dark); }
+.flight-search__go:disabled { background: #b9bfca; cursor: progress; }
+.swap {
+  flex: 0 0 auto; align-self: flex-end; margin-bottom: 3px; width: 38px; height: 40px;
+  font-size: 1.1rem; color: var(--blue); background: var(--card);
+  border: 1px solid var(--line); border-radius: 9px; cursor: pointer;
+}
+.swap:hover { border-color: var(--blue); background: #eef3fc; }
+
+/* ---------- airport suggestions ---------- */
+.suggestions {
+  position: absolute; z-index: 20; top: 100%; left: 0; right: 0; margin: 4px 0 0; padding: 4px;
+  list-style: none; max-height: 288px; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, .14);
+}
+.suggestions li {
+  display: grid; grid-template-columns: 42px 1fr; gap: 2px 10px; align-items: baseline;
+  padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: .875rem;
+}
+.suggestions li:hover, .suggestions li.is-active { background: #eef3fc; }
+.suggestions li strong { grid-row: span 2; font-size: .8rem; color: var(--blue); letter-spacing: .03em; }
+.suggestions li span { color: var(--ink); }
+.suggestions li small { grid-column: 2; color: var(--muted); font-size: .75rem; }
 
 .search { display: flex; gap: 10px; flex-wrap: wrap; }
 .search input {
@@ -191,4 +254,19 @@ table.results tbody tr.is-best { background: #f4fbf6; }
   .results__head { align-items: stretch; }
   .sortbar { width: 100%; }
   .sortbar select { flex: 1; }
+
+  /* Flight form stacks; From/To/date each take a full row for thumb reach. */
+  .modes { display: flex; width: 100%; }
+  .mode { flex: 1; padding: 10px 8px; }
+  .flight-search__row { flex-direction: column; align-items: stretch; }
+  .field--airport, .field--date, .field--pax { flex: 1 1 auto; width: 100%; }
+  .flight-search__go { width: 100%; padding: 14px; }
+  .swap { align-self: center; width: 100%; margin: 0; }
+
+  /* Flight cards: airline and fare on the top line, details beneath. */
+  table.results td[data-label="Airline"] { grid-column: 1; font-weight: 650; color: var(--ink); }
+  table.results td[data-label="Fare"] { grid-column: 2; grid-row: 1 / span 2; text-align: right; }
+  table.results td[data-label="Flight"],
+  table.results td[data-label="Departs"],
+  table.results td[data-label="Booking site"] { grid-column: 1; font-size: .85rem; color: var(--muted); }
 }

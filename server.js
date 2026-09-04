@@ -6,7 +6,9 @@
  *
  *   GET /api/search?q=<product>[&fresh=1]  live multi-store comparison
  *   GET /api/stores                        registry + why a store is skipped
- *   GET /api/health                         liveness probe
+ *   GET /api/airports?q=<term>             airport autocomplete for flights
+ *   GET /api/flights?from=&to=&date=       live flight fare comparison
+ *   GET /api/health                        liveness probe
  */
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
@@ -14,6 +16,9 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { searchAllStores } from './src/search.js';
+import { searchFlights } from './src/flightsearch.js';
+import { searchAirports, searchAirportsLive } from './src/airports.js';
+import { flightProviders } from './src/flights/index.js';
 import { stores, enabledStores } from './src/stores/index.js';
 import { closeBrowser } from './src/browser.js';
 
@@ -73,7 +78,40 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/health') {
-    return sendJson(res, 200, { ok: true, stores: enabledStores().length, uptime: process.uptime() });
+    return sendJson(res, 200, {
+      ok: true,
+      stores: enabledStores().length,
+      flightProviders: flightProviders.length,
+      uptime: process.uptime(),
+    });
+  }
+
+  // Airport autocomplete for the flight form's From/To fields.
+  //
+  // The default answers from the bundled dataset only, so suggestions appear
+  // as fast as they can be typed. `live=1` additionally queries an upstream
+  // airport directory, which can take a second - the front-end asks for that
+  // only when the bundled list came back empty, so a slow upstream call can
+  // never delay the common case.
+  if (url.pathname === '/api/airports') {
+    const term = url.searchParams.get('q') ?? '';
+    const airports = url.searchParams.get('live') === '1'
+      ? await searchAirportsLive(term, 8)
+      : searchAirports(term, 8);
+    return sendJson(res, 200, { airports });
+  }
+
+  if (url.pathname === '/api/flights') {
+    try {
+      const payload = await searchFlights(Object.fromEntries(url.searchParams), {
+        fresh: url.searchParams.get('fresh') === '1',
+      });
+      return sendJson(res, 200, payload);
+    } catch (error) {
+      const status = error.statusCode ?? 500;
+      if (status >= 500) console.error('[flights] failed:', error);
+      return sendJson(res, status, { error: error.message });
+    }
   }
 
   if (url.pathname === '/api/stores') {
@@ -132,4 +170,5 @@ server.on('error', (error) => {
 server.listen(PORT, HOST, () => {
   console.log(`Nepali Price Checker running at http://localhost:${PORT}`);
   console.log(`Live stores: ${enabledStores().map((store) => store.name).join(', ')}`);
+  console.log(`Flight providers: ${flightProviders.map((provider) => provider.name).join(', ')}`);
 });

@@ -22,12 +22,21 @@
 <main class="wrap">
   <section class="hero">
     <h1>Find the lowest price in Nepal</h1>
-    <p class="hero__sub">
+    <p class="hero__sub" id="hero-sub">
       Type a product and we check Nepali stores and marketplaces live, then sort every
       listing we actually find from cheapest to most expensive.
     </p>
 
-    <form class="search" id="search-form" role="search" autocomplete="off">
+    <div class="modes" role="tablist" aria-label="What are you comparing?">
+      <button type="button" class="mode is-active" id="mode-products" role="tab" aria-selected="true" aria-controls="search-form">
+        🛍️ Products
+      </button>
+      <button type="button" class="mode" id="mode-flights" role="tab" aria-selected="false" aria-controls="flight-form">
+        ✈️ Flight tickets
+      </button>
+    </div>
+
+    <form class="search" id="search-form" role="search" autocomplete="off" aria-labelledby="mode-products">
       <label class="sr-only" for="q">Product name</label>
       <input
         id="q" name="q" type="search" required minlength="2"
@@ -45,9 +54,109 @@
       <button type="button" class="chip" data-query="Samsung 55 inch TV">Samsung 55 inch TV</button>
       <button type="button" class="chip" data-query="air fryer">Air fryer</button>
     </p>
+
+    <!-- Flight search. Both From and To are comboboxes backed by /api/airports;
+         the visible input holds a readable label, the hidden field the IATA code. -->
+    <form class="flight-search" id="flight-form" role="search" autocomplete="off" hidden aria-labelledby="mode-flights">
+      <div class="flight-search__row">
+        <div class="field field--airport">
+          <label for="from-input">From</label>
+          <input id="from-input" type="text" placeholder="Kathmandu (KTM)" role="combobox"
+                 aria-expanded="false" aria-autocomplete="list" aria-controls="from-list" required>
+          <input type="hidden" id="from-code" name="from">
+          <ul class="suggestions" id="from-list" role="listbox" hidden></ul>
+        </div>
+
+        <button type="button" class="swap" id="swap-airports" title="Swap airports" aria-label="Swap departure and destination">⇄</button>
+
+        <div class="field field--airport">
+          <label for="to-input">To</label>
+          <input id="to-input" type="text" placeholder="Pokhara (PKR)" role="combobox"
+                 aria-expanded="false" aria-autocomplete="list" aria-controls="to-list" required>
+          <input type="hidden" id="to-code" name="to">
+          <ul class="suggestions" id="to-list" role="listbox" hidden></ul>
+        </div>
+
+        <div class="field field--date">
+          <label for="depart-date">Departure</label>
+          <input id="depart-date" type="date" name="date" required>
+        </div>
+
+        <div class="field field--pax">
+          <label for="adults">Adults</label>
+          <select id="adults" name="adults">
+            <option>1</option><option>2</option><option>3</option><option>4</option>
+            <option>5</option><option>6</option><option>7</option><option>8</option><option>9</option>
+          </select>
+        </div>
+
+        <div class="field field--pax">
+          <label for="children">Children</label>
+          <select id="children" name="children">
+            <option>0</option><option>1</option><option>2</option><option>3</option><option>4</option>
+          </select>
+        </div>
+
+        <button type="submit" class="flight-search__go" id="flight-btn">Compare fares</button>
+      </div>
+      <p class="examples">
+        Try:
+        <button type="button" class="chip" data-route="KTM,PKR">Kathmandu → Pokhara</button>
+        <button type="button" class="chip" data-route="KTM,BIR">Kathmandu → Biratnagar</button>
+        <button type="button" class="chip" data-route="KTM,DXB">Kathmandu → Dubai</button>
+      </p>
+    </form>
   </section>
 
   <section id="status-region" aria-live="polite"></section>
+
+  <!-- Flight results. Same structure as the product table so the card
+       collapse and sort behaviour are shared. -->
+  <section id="flight-results-region" hidden>
+    <div class="results__head">
+      <div>
+        <h2 id="flight-results-title"></h2>
+        <p class="results__meta" id="flight-results-meta"></p>
+      </div>
+      <div class="sortbar">
+        <label for="flight-sort">Sort by</label>
+        <select id="flight-sort">
+          <option value="fare-asc">Fare: low to high</option>
+          <option value="fare-desc">Fare: high to low</option>
+          <option value="depart">Departure time</option>
+          <option value="airline">Airline (A–Z)</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="flight-summary"></div>
+    <div id="flight-warnings"></div>
+
+    <table class="results" id="flight-table">
+      <thead>
+        <tr>
+          <th scope="col">Airline</th>
+          <th scope="col">Flight</th>
+          <th scope="col">Departs</th>
+          <th scope="col" class="num">Fare (NPR)</th>
+          <th scope="col">Booking site</th>
+          <th scope="col"><span class="sr-only">Link</span></th>
+        </tr>
+      </thead>
+      <tbody id="flight-body"></tbody>
+    </table>
+
+    <p class="disclaimer">
+      Fares are read live from each booking site at search time. Taxes, baggage and fees are not
+      always included in the figure shown, and the price can change before checkout &mdash;
+      always confirm on the booking site.
+    </p>
+
+    <details class="store-status" id="flight-provider-status">
+      <summary>Which booking sites were checked?</summary>
+      <ul id="flight-provider-list"></ul>
+    </details>
+  </section>
 
   <!-- Results: one <table> that collapses into stacked cards under 720px. -->
   <section id="results-region" hidden>
@@ -105,6 +214,17 @@
   </div>
 </footer>
 
+<template id="flight-row-template">
+  <tr>
+    <td data-label="Airline"><span class="shop airline"></span><span class="tags"></span></td>
+    <td data-label="Flight"><span class="flight-no"></span></td>
+    <td data-label="Departs"><span class="depart"></span></td>
+    <td data-label="Fare" class="num"><span class="price"></span><small class="converted"></small></td>
+    <td data-label="Booking site"><span class="provider"></span></td>
+    <td class="action"><a class="btn-view" target="_blank" rel="noopener nofollow">Book on site</a></td>
+  </tr>
+</template>
+
 <template id="row-template">
   <tr>
     <td data-label="Shop"><span class="shop"></span></td>
@@ -119,5 +239,6 @@
 </template>
 
 <script src="/app.js" type="module"></script>
+<script src="/flights.js" type="module"></script>
 </body>
 </html>

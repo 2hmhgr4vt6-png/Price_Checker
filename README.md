@@ -1,8 +1,14 @@
 # Nepali Price Checker
 
-A price-comparison website for Nepal. Type a product name once and see the
-listings each Nepali shop actually returns, sorted cheapest first, with the
-best price badged and every row linking back to the seller's own page.
+A comparison website for Nepal, with two modes behind one search area:
+
+- **Products** — type a product name once and see the listings each Nepali shop
+  actually returns, sorted cheapest first.
+- **Flight tickets** — pick where you are flying from and to, and see the fares
+  each Nepali ticket-booking site actually quotes, sorted from lowest upward.
+
+Nothing is estimated in either mode: a source that fails, is blocked or finds
+nothing is reported as skipped rather than filled in.
 
 ![Search results for "Dell laptop i5"](docs/screenshot-desktop.png)
 
@@ -27,6 +33,54 @@ SmartDoko, Hamrobazar, ITTI and the Oliz fallback, which are JavaScript-only
 Requires Node 18.17+ (Node 22 recommended). `PORT` and `HOST` are honoured.
 `CHROMIUM_PATH` points at an existing Chromium build instead of downloading
 one; `HTTPS_PROXY` is passed through to the browser.
+
+## Flight fares
+
+![Flight search with airport autocomplete](docs/screenshot-flights.png)
+
+Switch to **✈️ Flight tickets** and the search area becomes From / To /
+Departure / passengers. Both airport fields are comboboxes: type `pokh` and you
+get Pokhara's two airports, `lukla` gets Tenzing-Hillary. Suggestions come from
+a bundled dataset of every Nepali airport with scheduled service plus the
+international destinations flown from Kathmandu, so they appear as fast as you
+can type; a slower directory lookup is queried only when nothing bundled
+matches. The visible field shows `Pokhara (PKR)` while a hidden field carries
+the IATA code, so a half-typed city can never be submitted as a real airport.
+
+Results are sorted by fare, with the lowest badged, and re-sortable by
+departure time or airline. Fares are deep-linkable:
+`/?mode=flights&from=KTM&to=PKR&date=2026-09-20`.
+
+### Why flight fares need `setup:browser`
+
+Products can often be read over plain HTTP. Fares cannot. Checked directly:
+Buddha Air, Yeti, Shree, Himalaya, Nepal Airlines and Sastotickets publish **no
+fare API, no fare deep link, and no static fare table** — Sastotickets' own
+`/search-flight/<date>/<from>/<to>` style URLs all 404, and submitting its
+search form over HTTP with a valid CSRF token and session cookie redirects
+straight back to the homepage. A fare only exists after a booking form has been
+submitted, so `src/flights/sastotickets.js` fills and submits that form in a
+real browser and reads the resulting fare table.
+
+Sastotickets is the first provider because one search returns fares across
+every domestic carrier plus international routes — one browser flow instead of
+six airline scrapers. Per-airline providers are worth adding for cross-checking
+and go in `src/flights/`; the registry in `src/flights/index.js` documents the
+interface.
+
+Fare rows are found by what a fare row unavoidably contains — a price, a
+departure time and an airline name, all in the same element — rather than by
+per-site CSS selectors, which change without notice. `test/flights.test.js`
+runs that extractor against a fixture results page that includes the noise a
+naive price scraper would misread: a promo banner (price, no time), a baggage
+fee table (prices, no times) and a check-in notice (times, no price).
+
+**Honest status:** the flight UI, airport lookup, validation, orchestration and
+fare-row extraction are all verified by tests. The Sastotickets browser flow is
+written against that site's real form markup and validation rules, but could
+not be run against the live site from the cloud host this was built on, because
+Chromium there has no outbound network. Run it on a normal connection with
+`RENDER_DEBUG=1 npm start` to see exactly what the browser saw.
 
 ## What it does
 
@@ -183,7 +237,9 @@ front-end are unaware of how any given store is fetched.
 
 ```
 GET /api/search?q=<product>[&fresh=1]
-GET /api/stores      # registry, and why a store is disabled
+GET /api/stores                          # registry, and why a store is disabled
+GET /api/airports?q=<term>[&live=1]      # airport autocomplete
+GET /api/flights?from=KTM&to=PKR&date=2026-09-20[&adults=1&children=0&fresh=1]
 GET /api/health
 ```
 
@@ -224,6 +280,9 @@ src/price.js           price/currency string parsing
 src/fx.js              NPR conversion with live rates and pinned fallback
 src/http.js            fetch with timeout, browser UA, retry on 429/5xx
 src/html.js            dependency-free HTML extraction helpers
+src/airports.js        bundled airport dataset + ranked lookup
+src/flightsearch.js    fare fan-out, validation, sorting, warnings
+src/flights/           one module per booking site + the fare-row extractor
 src/stores/            one module per shop + shared platform routines
 src/stores/rendered.js   DOM extraction for JavaScript-only storefronts
 src/stores/spa.js        the rendered stores
@@ -231,6 +290,8 @@ src/stores/hukut.js      Hukut's public elastic-search API
 src/stores/gadgetbyte.js official-price reference reader
 src/stores/pricereference.js  strict WordPress "official price" reader
 public/                index.html, styles.css, app.js (no build step)
+public/flights.js      flight mode: form, fares, Products/Flights switch
+public/airport-input.js  the From/To combobox
 scripts/check-stores.js  reachability diagnostic
 test/                  node:test unit tests
 ```
@@ -270,6 +331,9 @@ missed it" after a markup change.
   than showing wrong prices.
 - Prices exclude delivery, and marketplace sellers vary in reliability.
   Confirm on the seller's page before paying.
+- Flight fares exclude taxes, baggage and fees unless the booking site includes
+  them in the figure it displays, and can change before checkout. One-way
+  searches only for now — return and multi-city are not wired up.
 
 ![Mobile card layout](docs/screenshot-mobile.png)
 
