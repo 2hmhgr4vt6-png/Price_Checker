@@ -19,7 +19,7 @@ import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { flightProviders } from '../src/flights/index.js';
+import { flightProviders, disabledFlightProviders } from '../src/flights/index.js';
 import { browserAvailable, closeBrowser } from '../src/browser.js';
 import { parseFlightQuery } from '../src/flightsearch.js';
 
@@ -46,14 +46,21 @@ if (!(await browserAvailable())) {
   process.exit(1);
 }
 
-console.log(`Checking ${flightProviders.length} provider(s) for ${query.from} → ${query.to} on ${query.date}\n`);
+const disabled = disabledFlightProviders();
+console.log(`Checking ${flightProviders.length - disabled.length} of ${flightProviders.length} provider(s) for ${query.from} → ${query.to} on ${query.date}`);
+for (const provider of disabled) console.log(`- ${provider.name.padEnd(24)} skipped (${provider.reason})`);
+console.log();
+
 process.env.RENDER_DEBUG = process.env.RENDER_DEBUG ?? '1';
+const disabledIds = new Set(disabled.map((provider) => provider.id));
 
 for (const provider of flightProviders) {
+  if (disabledIds.has(provider.id)) continue;
   const startedAt = Date.now();
   try {
     const fares = await provider.searchFlights(query, { timeout: 60000 });
-    console.log(`\n✓ ${provider.name}: ${fares.length} fare(s) in ${Date.now() - startedAt}ms`);
+    const mark = fares.length ? '✓' : '·';
+    console.log(`\n${mark} ${provider.name}: ${fares.length} fare(s) in ${Date.now() - startedAt}ms`);
     for (const fare of fares.slice(0, 8)) {
       console.log(`    ${String(fare.amount).padStart(7)} ${fare.currency}  ${fare.airline}` +
         `${fare.flightNumber ? ` ${fare.flightNumber}` : ''}${fare.departTime ? ` at ${fare.departTime}` : ''}`);

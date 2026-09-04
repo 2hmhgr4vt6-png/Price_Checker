@@ -94,6 +94,9 @@ export function attachAirportInput({ input, hidden, list, onPick }) {
   });
 
   input.addEventListener('focus', () => {
+    // An airport is already chosen, so there is nothing to suggest - and
+    // dropping a list over the results on page load would just be in the way.
+    if (hidden.value) return;
     clearTimeout(timer);
     fetchSuggestions(input.value.trim());
   });

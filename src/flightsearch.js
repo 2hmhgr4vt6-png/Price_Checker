@@ -6,12 +6,15 @@
  * filled in, fares in other currencies are converted and labelled, and the
  * cheapest fare is badged only if it is a real quoted fare.
  */
-import { enabledFlightProviders, flightProviders } from './flights/index.js';
+import { enabledFlightProviders, disabledFlightProviders, flightProviders } from './flights/index.js';
 import { currencyConverter } from './fx.js';
 import { airportByCode, isValidCode } from './airports.js';
 import { browserAvailable } from './browser.js';
 
 const PROVIDER_TIMEOUT_MS = 45000; // a booking form submit plus a render
+// Each browser-backed provider drives its own Chromium page. Running six at
+// once on a laptop is what makes a fan spin up, so they queue in small groups.
+const MAX_CONCURRENT_RENDERS = 3;
 const CACHE_TTL_MS = 5 * 60 * 1000; // fares move faster than shop prices
 const MAX_AHEAD_DAYS = 361; // Sastotickets' own limit, and a sane cap anyway
 
@@ -105,6 +108,16 @@ async function searchOneProvider(provider, query, convert) {
   }
 }
 
+/** Run `task` over `items`, at most MAX_CONCURRENT_RENDERS at a time. */
+async function runThrottled(items, task) {
+  const settled = [];
+  for (let index = 0; index < items.length; index += MAX_CONCURRENT_RENDERS) {
+    const batch = items.slice(index, index + MAX_CONCURRENT_RENDERS);
+    settled.push(...await Promise.all(batch.map(task)));
+  }
+  return settled;
+}
+
 function dedupe(rows) {
   const seen = new Set();
   return rows.filter((row) => {
@@ -132,10 +145,22 @@ export async function searchFlights(params, { fresh = false } = {}) {
 
   const convert = await currencyConverter();
   const active = enabledFlightProviders();
-  const results = await Promise.all(active.map((provider) => searchOneProvider(provider, query, convert)));
+
+  // API providers cost nothing to run in parallel; browser ones are throttled.
+  const apiProviders = active.filter((provider) => !provider.needsBrowser);
+  const renderProviders = active.filter((provider) => provider.needsBrowser);
+
+  const results = await Promise.all([
+    ...apiProviders.map((provider) => searchOneProvider(provider, query, convert)),
+    ...(await runThrottled(renderProviders, (provider) => searchOneProvider(provider, query, convert))),
+  ]);
 
   const rows = dedupe(results.flatMap((result) => result.rows)).sort((a, b) => a.fareNpr - b.fareNpr);
-  if (rows.length) rows[0].bestFare = true;
+
+  // A fare reference (Amadeus) is not bookable, so it never takes the badge -
+  // same rule as published prices on the product side.
+  const bookable = rows.find((row) => row.providerKind !== 'reference');
+  if (bookable) bookable.bestFare = true;
 
   const warnings = [];
   const skipped = results.filter((result) => result.status !== 'ok');
@@ -149,6 +174,8 @@ export async function searchFlights(params, { fresh = false } = {}) {
     );
   }
 
+  const cheapestBookable = rows.find((row) => row.bestFare) ?? rows[0];
+
   const payload = {
     query: {
       ...query,
@@ -158,14 +185,20 @@ export async function searchFlights(params, { fresh = false } = {}) {
     generatedAt: new Date().toISOString(),
     resultCount: rows.length,
     results: rows,
-    cheapest: rows.length
-      ? { providerName: rows[0].providerName, airline: rows[0].airline, fareNpr: rows[0].fareNpr, url: rows[0].url }
+    cheapest: cheapestBookable
+      ? {
+        providerName: cheapestBookable.providerName,
+        airline: cheapestBookable.airline,
+        fareNpr: cheapestBookable.fareNpr,
+        url: cheapestBookable.url,
+      }
       : null,
     fareRange: rows.length ? { min: rows[0].fareNpr, max: rows[rows.length - 1].fareNpr } : null,
     providers: results.map(({ provider, status, count, error, ms }) => ({
       id: provider.id, name: provider.name, homepage: provider.homepage, status, count, error: error ?? null, ms,
     })),
     totalProviders: flightProviders.length,
+    disabledProviders: disabledFlightProviders(),
     browserRendering: await browserAvailable(),
     fx: convert.meta,
     warnings,

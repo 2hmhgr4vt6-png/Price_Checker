@@ -104,8 +104,9 @@ function showPanel(html) {
   statusRegion.innerHTML = `<div class="panel">${html}</div>`;
 }
 
-function renderProviders(payload) {
-  providerList.innerHTML = payload.providers.map((provider) => {
+/** One <li> per provider, explaining what happened to it. */
+function providerItems(payload) {
+  const rows = payload.providers.map((provider) => {
     if (provider.status === 'ok') {
       return `<li><strong>${escapeHtml(provider.name)}</strong> — <span class="ok">${provider.count} fare${provider.count === 1 ? '' : 's'}</span></li>`;
     }
@@ -118,7 +119,17 @@ function renderProviders(payload) {
     }
     return `<li><strong>${escapeHtml(provider.name)}</strong> — <span class="err">could not be reached</span>
       <span class="miss">(${escapeHtml(provider.error ?? 'unavailable')})</span></li>`;
-  }).join('');
+  });
+
+  for (const provider of payload.disabledProviders ?? []) {
+    rows.push(`<li><strong>${escapeHtml(provider.name)}</strong> — <span class="miss">${escapeHtml(provider.reason)}</span></li>`);
+  }
+
+  return rows.join('');
+}
+
+function renderProviders(payload) {
+  providerList.innerHTML = providerItems(payload);
 }
 
 function renderSummary(payload) {
@@ -192,6 +203,12 @@ function renderRows(rows) {
       tag.textContent = 'Lowest fare';
       tags.append(tag);
     }
+    if (row.providerKind === 'reference') {
+      const tag = document.createElement('span');
+      tag.className = 'tag tag--ref';
+      tag.textContent = 'Fare reference';
+      tags.append(tag);
+    }
     if (row.note) {
       const tag = document.createElement('span');
       tag.className = 'tag tag--seller';
@@ -227,11 +244,9 @@ function render(payload) {
         <p>We checked ${payload.providers.length} booking site${payload.providers.length === 1 ? '' : 's'}
            and none quoted a fare. Nothing is shown rather than guessed.</p>
         <p>Try a nearby date, or check whether this route is flown directly.</p>`}
-      ${unreachable.length && !needBrowser.length ? `<ul>${unreachable.map((provider) =>
-        `<li>${escapeHtml(provider.name)}: ${escapeHtml(provider.error ?? 'unavailable')}</li>`).join('')}</ul>` : ''}
+      <p><strong>What each booking site did:</strong></p>
+      <ul>${providerItems(payload)}</ul>
     `);
-    renderProviders(payload);
-    providerStatus.hidden = false;
     return;
   }
 
@@ -380,8 +395,17 @@ if (initial.get('mode') === 'flights') {
   setMode('flights', { push: false });
 
   const preset = { from: initial.get('from'), to: initial.get('to'), date: initial.get('date') };
-  if (preset.from) { from.setCode(preset.from.toUpperCase()); fromInput.value = preset.from.toUpperCase(); }
-  if (preset.to) { to.setCode(preset.to.toUpperCase()); toInput.value = preset.to.toUpperCase(); }
+  // Resolve the codes to readable labels, and have the hidden fields set
+  // before anything is focused.
+  const resolve = async (code) => {
+    try {
+      const res = await fetch(`/api/airports?q=${encodeURIComponent(code)}`);
+      const { airports } = await res.json();
+      return airports.find((airport) => airport.code === code) ?? null;
+    } catch { return null; }
+  };
+  if (preset.from) from.setCode(preset.from.toUpperCase(), await resolve(preset.from.toUpperCase()));
+  if (preset.to) to.setCode(preset.to.toUpperCase(), await resolve(preset.to.toUpperCase()));
   if (preset.date) dateInput.value = preset.date;
   if (initial.get('adults')) document.getElementById('adults').value = initial.get('adults');
   if (initial.get('children')) document.getElementById('children').value = initial.get('children');

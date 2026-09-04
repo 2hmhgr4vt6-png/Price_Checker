@@ -51,7 +51,43 @@ Results are sorted by fare, with the lowest badged, and re-sortable by
 departure time or airline. Fares are deep-linkable:
 `/?mode=flights&from=KTM&to=PKR&date=2026-09-20`.
 
-### Why flight fares need `setup:browser`
+### Fare sources
+
+| Source | How | Status |
+|---|---|---|
+| **Amadeus** | Licensed fare API (`v2/shopping/flight-offers`) — structured offers, no scraping. Free self-service keys at developers.amadeus.com; set `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET`, and `AMADEUS_ENV=production` once a production key is approved | Off until keys are set. The sturdiest source here — rows are tagged **Fare reference** and never take the "Lowest fare" badge, since you book elsewhere |
+| **Sastotickets** | Its own search form, driven in a browser | One search covers every domestic carrier |
+| **Hop Nepal** | Same, via the generic form filler | Its form uses Amadeus's field names |
+| **Buddha Air**, **Yeti Airlines**, **Shree Airlines** | Same. Airline-direct matters because the airline's own price is what resellers mark up or discount from | Unverified against the live sites — see the honest-status note below |
+
+Adding another booking site is normally one entry in `src/flights/index.js`:
+
+```js
+bookingFormProvider({ id: 'x', name: 'X Travels', homepage: 'https://x.com.np' })
+```
+
+`bookingFormProvider` fills a site's search form the way a person would — it
+finds the field that means "from", the one that means "to" and the date field
+by **name, id, placeholder and nearby label text**, which survives a redesign
+far better than a CSS path, and leaves any return-date field alone on a one-way
+search. `test/flights.test.js` proves that against a fixture form built in the
+awkward shapes real sites use: origin identified only by placeholder,
+destination only by `<label for>`, the outbound date named `journey_date`, and
+a decoy return-date field.
+
+### Why eSewa, Khalti and IME Pay are not fare sources
+
+They do sell tickets, but not to anyone who is not logged in: eSewa serves a
+bare login shell, Khalti's flight page is marketing copy with the booking flow
+inside its app, and IME Pay is app-first. Reading them would mean automating
+someone's wallet login, which this project will not do.
+
+It would also add rows rather than information — wallets resell through the
+same consolidators as everyone else, so their domestic fares are generally the
+airline's own fare. The useful workflow is to compare here, then pay in
+whichever wallet is offering cashback.
+
+### Why the rest needs `setup:browser`
 
 Products can often be read over plain HTTP. Fares cannot. Checked directly:
 Buddha Air, Yeti, Shree, Himalaya, Nepal Airlines and Sastotickets publish **no
@@ -75,12 +111,22 @@ runs that extractor against a fixture results page that includes the noise a
 naive price scraper would misread: a promo banner (price, no time), a baggage
 fee table (prices, no times) and a check-in notice (times, no price).
 
-**Honest status:** the flight UI, airport lookup, validation, orchestration and
-fare-row extraction are all verified by tests. The Sastotickets browser flow is
-written against that site's real form markup and validation rules, but could
-not be run against the live site from the cloud host this was built on, because
-Chromium there has no outbound network. Run it on a normal connection with
-`RENDER_DEBUG=1 npm start` to see exactly what the browser saw.
+Browser-backed providers are throttled to three at a time, so a search does
+not open six Chromium pages at once.
+
+**Honest status:** the flight UI, airport lookup, validation, orchestration,
+the generic form filler and fare-row extraction are all verified by tests
+against fixtures. None of the fare providers has been run against its live
+site, because Chromium on the cloud host this was built on has no outbound
+network — and Amadeus is blocked there by egress policy. So treat every
+provider as unverified until you have run:
+
+```bash
+npm run check:flights -- KTM PKR 2026-09-20
+```
+
+which prints, per provider, the URL the browser ended on, the page title, the
+visible page text and any rows recognised.
 
 ## What it does
 

@@ -1,0 +1,38 @@
+<!doctype html>
+<!--
+  Fixture: a booking search form in the awkward shapes real sites use - the
+  origin field is named "origin" with a placeholder rather than a label, the
+  destination is identified only by its <label for>, the outbound date is
+  named "journey_date", and there is a return-date field that must be left
+  alone. Submitting is a real GET, so the results page can echo back exactly
+  what was filled in.
+-->
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture Airlines</title></head>
+<body>
+  <h1>Book a flight</h1>
+  <form action="/results" method="get">
+    <div>
+      <input type="text" name="origin" placeholder="Flying from?">
+    </div>
+    <div>
+      <label for="dest">To</label>
+      <input type="text" id="dest" name="dest">
+    </div>
+    <div>
+      <label for="jd">Departure date</label>
+      <input type="text" id="jd" name="journey_date">
+    </div>
+    <div>
+      <label for="rd">Return date</label>
+      <input type="text" id="rd" name="return_date">
+    </div>
+    <div>
+      <label for="ad">Adults</label>
+      <select id="ad" name="adults"><option>1</option><option>2</option><option>3</option></select>
+    </div>
+    <button type="button">Reset</button>
+    <button type="submit">Search flights</button>
+  </form>
+</body>
+</html>

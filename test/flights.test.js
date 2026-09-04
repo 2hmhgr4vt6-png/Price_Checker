@@ -14,6 +14,7 @@ import { searchAirports, airportByCode, isValidCode } from '../src/airports.js';
 import { parseFlightQuery, searchFlights } from '../src/flightsearch.js';
 import { flightProviders } from '../src/flights/index.js';
 import { extractFareRows } from '../src/flights/extract.js';
+import { bookingFormProvider } from '../src/flights/formProvider.js';
 import { browserAvailable, renderAndExtract, closeBrowser } from '../src/browser.js';
 
 const isoInDays = (days) => {
@@ -138,4 +139,50 @@ test('converts a foreign-currency fare and de-duplicates repeated rows', async (
   } finally {
     restore();
   }
+});
+
+test('the generic form filler finds the right fields and submits', { skip: available ? false : 'playwright not installed' }, async (t) => {
+  const form = await readFile(new URL('./fixtures/booking-form.html', import.meta.url), 'utf8');
+  const fares = await readFile(new URL('./fixtures/fare-results.html', import.meta.url), 'utf8');
+
+  let submitted = null;
+  const server = createServer((req, res) => {
+    const url = new URL(req.url, 'http://localhost');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+
+    if (url.pathname === '/results') {
+      submitted = Object.fromEntries(url.searchParams);
+      // Echo the submitted values into the page so the assertions can see
+      // both that the form was filled correctly and that fares parse.
+      return res.end(fares);
+    }
+    return res.end(form);
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => server.close());
+
+  const provider = bookingFormProvider({
+    id: 'fixture',
+    name: 'Fixture Airlines',
+    homepage: `http://127.0.0.1:${server.address().port}/`,
+    waitFor: '.flight-row',
+  });
+
+  const results = await provider.searchFlights({ from: 'KTM', to: 'PKR', date: '2026-09-20', adults: 2 });
+
+  // Located by placeholder, by <label for>, and by a label whose wording does
+  // not match the field name.
+  assert.equal(submitted.origin, 'KTM');
+  assert.equal(submitted.dest, 'PKR');
+  assert.equal(submitted.journey_date, '2026-09-20');
+  assert.equal(submitted.adults, '2');
+  // A one-way search must not fill the return date.
+  assert.equal(submitted.return_date, '');
+
+  // ...and the fares on the resulting page are read, cheapest not assumed.
+  assert.equal(results.length, 3);
+  assert.deepEqual(results.map((row) => row.amount), [5499, 4950, 6120]);
+  assert.deepEqual(results.map((row) => row.airline), ['Buddha Air', 'Yeti Airlines', 'Shree Airlines']);
+  assert.equal(results[0].flightNumber, 'U4 601');
 });
