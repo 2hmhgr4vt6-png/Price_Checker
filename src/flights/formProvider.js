@@ -73,11 +73,25 @@ function fillBookingForm(input) {
   // "return"/"arrival" fields must not be mistaken for the outbound ones.
   const RETURN = [/return/i, /arriv/i, /inbound/i, /dest_date/i];
 
+  // A round trip needs the return leg; a one-way search must leave it empty.
+  const tripButton = [...document.querySelectorAll('button, a, label, input[type="radio"]')]
+    .find((element) => {
+      const text = `${element.innerText ?? ''} ${element.value ?? ''}`.toLowerCase();
+      return input.tripType === 'return'
+        ? /round\s*trip|return/.test(text)
+        : /one\s*way/.test(text);
+    });
+  if (tripButton) tripButton.click();
+
   const filled = {
     from: set(find(overrides.from, [/\b(origin|from|depart(ure)?[_\s-]?(city|airport|station)?)\b/i, /originlocationcode/i], RETURN), input.from),
     to: set(find(overrides.to, [/\b(destination|to|arrival[_\s-]?(city|airport)?)\b/i, /destinationlocationcode/i], [/\breturn\b/i]), input.to),
     date: set(find(overrides.date, [/\b(depart(ure)?[_\s-]?date|departuredate|onward|journey[_\s-]?date)\b/i, /\bdate\b/i], RETURN), input.date),
   };
+
+  if (input.returnDate) {
+    set(find(overrides.returnDate, [/\b(return|inbound)[_\s-]?date\b/i, /\breturn\b/i]), input.returnDate);
+  }
 
   set(find(overrides.adults, [/\badults?\b/i, /\bpax\b/i]), input.adults);
   if (input.children) set(find(overrides.children, [/\bchild(ren)?\b/i]), input.children);
@@ -118,14 +132,14 @@ export function bookingFormProvider({
     needsBrowser: true,
     verified,
 
-    async searchFlights({ from, to, date, adults = 1, children = 0, infants = 0 }, { limit = 25, timeout } = {}) {
+    async searchFlights({ from, to, date, adults = 1, children = 0, infants = 0, tripType = 'oneway', returnDate = null }, { limit = 25, timeout } = {}) {
       if (!(await browserAvailable())) {
         throw new Error('Needs headless rendering - run: npm run setup:browser');
       }
 
       const { url, title, bodyText, data } = await renderFormFlow(searchPage ?? homepage, {
         prepare: fillBookingForm,
-        input: { from, to, date, adults, children, infants, overrides },
+        input: { from, to, date, adults, children, infants, tripType, returnDate, overrides },
         extract: extractFareRows,
         waitFor: waitFor ?? '[class*="flight"], [class*="result"], [class*="fare"]',
         timeout,

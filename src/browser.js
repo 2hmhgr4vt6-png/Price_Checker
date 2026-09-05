@@ -194,6 +194,11 @@ export async function renderFormFlow(url, {
   }
 }
 
+/** Render `url` and hand back the finished HTML for parsing in Node. */
+export async function renderHtml(url, options = {}) {
+  return renderAndExtract(url, () => document.documentElement.outerHTML, options);
+}
+
 export async function closeBrowser() {
   if (!browserPromise) return;
   const browser = await browserPromise.catch(() => null);

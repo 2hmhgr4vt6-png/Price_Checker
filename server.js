@@ -8,6 +8,7 @@
  *   GET /api/stores                        registry + why a store is skipped
  *   GET /api/airports?q=<term>             airport autocomplete for flights
  *   GET /api/flights?from=&to=&date=       live flight fare comparison
+ *   GET /api/movies                        published cinema ticket rates
  *   GET /api/health                        liveness probe
  */
 import { createServer } from 'node:http';
@@ -19,6 +20,8 @@ import { searchAllStores } from './src/search.js';
 import { searchFlights } from './src/flightsearch.js';
 import { searchAirports, searchAirportsLive } from './src/airports.js';
 import { flightProviders } from './src/flights/index.js';
+import { listMovieTicketPrices } from './src/movietickets.js';
+import { cinemas } from './src/movies/index.js';
 import { stores, enabledStores } from './src/stores/index.js';
 import { closeBrowser } from './src/browser.js';
 
@@ -82,6 +85,7 @@ const server = createServer(async (req, res) => {
       ok: true,
       stores: enabledStores().length,
       flightProviders: flightProviders.length,
+      cinemas: cinemas.length,
       uptime: process.uptime(),
     });
   }
@@ -99,6 +103,16 @@ const server = createServer(async (req, res) => {
       ? await searchAirportsLive(term, 8)
       : searchAirports(term, 8);
     return sendJson(res, 200, { airports });
+  }
+
+  if (url.pathname === '/api/movies') {
+    try {
+      const payload = await listMovieTicketPrices({ fresh: url.searchParams.get('fresh') === '1' });
+      return sendJson(res, 200, payload);
+    } catch (error) {
+      console.error('[movies] failed:', error);
+      return sendJson(res, 500, { error: error.message });
+    }
   }
 
   if (url.pathname === '/api/flights') {
@@ -171,4 +185,5 @@ server.listen(PORT, HOST, () => {
   console.log(`Nepali Price Checker running at http://localhost:${PORT}`);
   console.log(`Live stores: ${enabledStores().map((store) => store.name).join(', ')}`);
   console.log(`Flight providers: ${flightProviders.map((provider) => provider.name).join(', ')}`);
+  console.log(`Cinemas: ${cinemas.map((cinema) => cinema.name).join(', ')}`);
 });

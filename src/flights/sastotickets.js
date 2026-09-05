@@ -43,7 +43,8 @@ function fillSearchForm(input) {
   set('depart_city', input.from);
   set('dest_city', input.to);
   set('depart_date', input.date);
-  set('trip_type', 'oneway');
+  set('trip_type', input.tripType === 'return' ? 'roundtrip' : 'oneway');
+  if (input.returnDate) set('dest_date', input.returnDate);
   set('adults', String(input.adults));
   set('children', String(input.children));
   set('infant', String(input.infants));
@@ -66,14 +67,14 @@ export default {
   kind: 'ota',
   needsBrowser: true,
 
-  async searchFlights({ from, to, date, adults = 1, children = 0, infants = 0 }, { limit = 25, timeout } = {}) {
+  async searchFlights({ from, to, date, adults = 1, children = 0, infants = 0, tripType = 'oneway', returnDate = null }, { limit = 25, timeout } = {}) {
     if (!(await browserAvailable())) {
       throw new Error('Needs headless rendering - run: npm run setup:browser');
     }
 
     const { url, title, bodyText, data } = await renderFormFlow(ORIGIN, {
       prepare: fillSearchForm,
-      input: { from, to, date, adults, children, infants },
+      input: { from, to, date, adults, children, infants, tripType, returnDate },
       extract: extractFareRows,
       waitFor: '[class*="flight"], [class*="result"]',
       timeout,

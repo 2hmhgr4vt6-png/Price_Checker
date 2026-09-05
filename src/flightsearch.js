@@ -27,6 +27,8 @@ export function parseFlightQuery(params) {
   const from = String(params.from ?? '').toUpperCase().trim();
   const to = String(params.to ?? '').toUpperCase().trim();
   const date = String(params.date ?? '').trim();
+  const tripType = params.tripType === 'return' ? 'return' : 'oneway';
+  const returnDate = String(params.returnDate ?? '').trim();
 
   if (!isValidCode(from) || !isValidCode(to)) {
     throw badRequest('Pick a departure and destination airport from the suggestions.');
@@ -51,11 +53,27 @@ export function parseFlightQuery(params) {
     return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), max) : fallback;
   };
 
+  if (tripType === 'return') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(returnDate)) {
+      throw badRequest('A round trip needs a return date as YYYY-MM-DD.');
+    }
+    if (returnDate < date) throw badRequest('The return date is before the departure date.');
+
+    const back = new Date(`${returnDate}T00:00:00`);
+    if (Number.isNaN(back.getTime())) throw badRequest('That return date is not a real date.');
+    if (Math.round((back - today) / 86400000) > MAX_AHEAD_DAYS) {
+      throw badRequest(`Airlines do not sell this far ahead — pick a return within ${MAX_AHEAD_DAYS} days.`);
+    }
+  }
+
   const adults = Math.max(1, count(params.adults, 1, 9));
   const children = count(params.children, 0, 9);
   const infants = count(params.infants, 0, adults); // one lap infant per adult
 
-  return { from, to, date, adults, children, infants };
+  return {
+    from, to, date, adults, children, infants, tripType,
+    returnDate: tripType === 'return' ? returnDate : null,
+  };
 }
 
 async function searchOneProvider(provider, query, convert) {
@@ -137,7 +155,10 @@ function dedupe(rows) {
 export async function searchFlights(params, { fresh = false } = {}) {
   const query = parseFlightQuery(params);
 
-  const cacheKey = [query.from, query.to, query.date, query.adults, query.children, query.infants].join('|');
+  const cacheKey = [
+    query.from, query.to, query.date, query.tripType, query.returnDate ?? '',
+    query.adults, query.children, query.infants,
+  ].join('|');
   const hit = cache.get(cacheKey);
   if (!fresh && hit && Date.now() - hit.at < CACHE_TTL_MS) {
     return { ...hit.payload, cached: true };

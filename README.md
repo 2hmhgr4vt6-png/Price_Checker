@@ -1,11 +1,22 @@
 # Nepali Price Checker
 
-A comparison website for Nepal, with two modes behind one search area:
+A comparison website for Nepal, with three modes behind one search area:
 
 - **Products** — type a product name once and see the listings each Nepali shop
-  actually returns, sorted cheapest first.
-- **Flight tickets** — pick where you are flying from and to, and see the fares
-  each Nepali ticket-booking site actually quotes, sorted from lowest upward.
+  actually returns, sorted cheapest first. Any category: a guitar, work gloves
+  and a gas cylinder are all just searches.
+- **Flight tickets** — one-way or round trip, with airport autocomplete, and
+  the fares each Nepali booking site actually quotes, sorted from lowest upward.
+- **Movie tickets** — Nepali cinemas publish a rate card by day band and show
+  slot rather than a price per film, so this compares those rates: the cheapest
+  way to see a film on a weekday morning, a weekend evening, and so on.
+
+Results in every mode can be narrowed to one shop, airline or cinema with the
+filter chips above the table, which are built from what actually came back — so
+a filter can never empty the table — and each chip carries its own count.
+
+Adding a fourth mode (bus tickets, events) is a `registerMode()` call in the
+front-end plus a provider registry, following what `src/movies/` does.
 
 Nothing is estimated in either mode: a source that fails, is blocked or finds
 nothing is reported as skipped rather than filled in.
@@ -77,15 +88,23 @@ a decoy return-date field.
 
 ### Why eSewa, Khalti and IME Pay are not fare sources
 
-They do sell tickets, but not to anyone who is not logged in: eSewa serves a
-bare login shell, Khalti's flight page is marketing copy with the booking flow
-inside its app, and IME Pay is app-first. Reading them would mean automating
-someone's wallet login, which this project will not do.
+Checked directly, and each one is closed to anyone not signed in:
 
-It would also add rows rather than information — wallets resell through the
-same consolidators as everyone else, so their domestic fares are generally the
-airline's own fare. The useful workflow is to compare here, then pay in
-whichever wallet is offering cashback.
+| Wallet | What it returns |
+|---|---|
+| Khalti | `khalti.com/api/flight/search/` → **HTTP 403**. Its flight page is marketing copy telling you to "Download the Khalti app" and "Login to…" |
+| eSewa | `esewa.com.np` serves a 6.9 KB login shell; `/api/flight` is a 404 |
+| IME Pay | `imepay.com.np` does not resolve over the web at all — app-first |
+
+Reading any of them would mean automating someone's wallet login, which this
+project will not do: it would need your credentials, break the moment 2FA
+appears, and is not something a price comparison should ask for.
+
+It would also add rows rather than information. Wallets do not hold fare
+inventory — they embed an agency or consolidator — so their domestic fares are
+generally the same fare the airline and the agencies are showing, minus
+whatever cashback is running that week. The useful workflow is to compare here,
+then pay in whichever wallet is offering the best cashback.
 
 ### Why the rest needs `setup:browser`
 
@@ -212,6 +231,8 @@ Three fetch mechanisms, in order of preference:
 
 | Store | Why |
 |---|---|
+| Bhatbhateni Online | The big household and grocery retailer — where a search for gloves, kitchenware or a gas cylinder lands. JavaScript-only |
+| Muncha | General-category marketplace. Its search route needs three query fields, only one of which varies |
 | SmartDoko | Next.js app; the grid is built client side and the search HTML ships zero prices |
 | ITTI Computer World | Same, and weaker: its reachable API returns `selling_price: 0` for every search row, which is why its unrendered markup reads `रु NaN`. Expect it to contribute nothing for many queries — that is the shop, not this code |
 | Hamrobazar | SPA over a token-gated API (`api.hamrobazaar.com` returns "Un-Authorized Access" to anonymous callers) |
@@ -308,7 +329,8 @@ front-end are unaware of how any given store is fetched.
 GET /api/search?q=<product>[&fresh=1]
 GET /api/stores                          # registry, and why a store is disabled
 GET /api/airports?q=<term>[&live=1]      # airport autocomplete
-GET /api/flights?from=KTM&to=PKR&date=2026-09-20[&adults=1&children=0&fresh=1]
+GET /api/flights?from=KTM&to=PKR&date=2026-09-20[&tripType=return&returnDate=…&adults=1&children=0&fresh=1]
+GET /api/movies                          # published cinema rate cards
 GET /api/health
 ```
 
@@ -350,6 +372,8 @@ src/fx.js              NPR conversion with live rates and pinned fallback
 src/http.js            fetch with timeout, browser UA, retry on 429/5xx
 src/html.js            dependency-free HTML extraction helpers
 src/airports.js        bundled airport dataset + ranked lookup
+src/movietickets.js    cinema rate-card fan-out
+src/movies/            one module per cinema + the rate-card parser
 src/flightsearch.js    fare fan-out, validation, sorting, warnings
 src/flights/           one module per booking site + the fare-row extractor
 src/stores/            one module per shop + shared platform routines
@@ -359,7 +383,10 @@ src/stores/hukut.js      Hukut's public elastic-search API
 src/stores/gadgetbyte.js official-price reference reader
 src/stores/pricereference.js  strict WordPress "official price" reader
 public/                index.html, styles.css, app.js (no build step)
-public/flights.js      flight mode: form, fares, Products/Flights switch
+public/flights.js      flight mode: form, fares, trip type
+public/movies.js       movie mode: cinema rate cards
+public/mode.js         the Products / Flights / Movies switch
+public/filters.js      the shop / airline / cinema filter chips
 public/airport-input.js  the From/To combobox
 scripts/check-stores.js  reachability diagnostic
 test/                  node:test unit tests
@@ -414,8 +441,11 @@ markup needed to fix it.
 - Prices exclude delivery, and marketplace sellers vary in reliability.
   Confirm on the seller's page before paying.
 - Flight fares exclude taxes, baggage and fees unless the booking site includes
-  them in the figure it displays, and can change before checkout. One-way
-  searches only for now — return and multi-city are not wired up.
+  them in the figure it displays, and can change before checkout. One-way and
+  round trip are supported; multi-city is not.
+- Movie mode compares each cinema's **published rate card**, not seat
+  availability for a particular film, and premium screens (3D, recliner) cost
+  more than the rate shown.
 
 ![Mobile card layout](docs/screenshot-mobile.png)
 

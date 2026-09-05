@@ -6,6 +6,8 @@
  * actually quoted.
  */
 import { attachAirportInput } from './airport-input.js';
+import { attachFilter, applyFilter } from './filters.js';
+import { registerMode } from './mode.js';
 
 const modeProducts = document.getElementById('mode-products');
 const modeFlights = document.getElementById('mode-flights');
@@ -31,12 +33,59 @@ const providerList = document.getElementById('flight-provider-list');
 const providerStatus = document.getElementById('flight-provider-status');
 const sortSelect = document.getElementById('flight-sort');
 const rowTemplate = document.getElementById('flight-row-template');
+const returnField = document.getElementById('return-field');
+const returnInput = document.getElementById('return-date');
+const tripOneWay = document.getElementById('trip-oneway');
+const tripReturn = document.getElementById('trip-return');
 
 const npr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 const formatNpr = (amount) => `Rs. ${npr.format(amount)}`;
 
 let current = null;
 let inFlight = null;
+let tripType = 'oneway';
+
+const airlineFilter = attachFilter({
+  container: document.getElementById('airline-filter'),
+  label: 'Airline',
+  onChange: () => renderCurrentFares(),
+});
+
+function renderCurrentFares() {
+  const rows = applyFilter(current?.results ?? [], (row) => row.airline, airlineFilter.selected);
+  renderRows([...rows].sort(SORTERS[sortSelect.value] ?? SORTERS['fare-asc']));
+  updateFareCount(rows.length);
+}
+
+/** Keep the heading honest when the airline filter is hiding fares. */
+function updateFareCount(shown) {
+  if (!current) return;
+  const total = current.resultCount;
+  const route = `${current.query.fromAirport?.city ?? current.query.from} → ${current.query.toAirport?.city ?? current.query.to}`;
+  title.textContent =
+    `${total} fare${total === 1 ? '' : 's'} for ${route}${shown === total ? '' : ` (${shown} shown)`}`;
+}
+
+/** Round trips need a return date; one-way searches must not send one. */
+function setTripType(next) {
+  tripType = next;
+  const isReturn = next === 'return';
+
+  tripReturn.classList.toggle('is-active', isReturn);
+  tripOneWay.classList.toggle('is-active', !isReturn);
+  tripReturn.setAttribute('aria-checked', String(isReturn));
+  tripOneWay.setAttribute('aria-checked', String(!isReturn));
+
+  returnField.hidden = !isReturn;
+  returnInput.required = isReturn;
+  if (!isReturn) returnInput.value = '';
+  else if (!returnInput.value && dateInput.value) {
+    // A week after departure is the common case, and beats an empty field.
+    const back = new Date(dateInput.value);
+    back.setDate(back.getDate() + 7);
+    returnInput.value = back.toISOString().slice(0, 10);
+  }
+}
 
 const escapeHtml = (text) =>
   String(text).replace(/[&<>"']/g, (char) =>
@@ -63,39 +112,23 @@ const SORTERS = {
 
 // ---------------------------------------------------------------- mode switch
 
-function setMode(mode, { push = true } = {}) {
-  const flights = mode === 'flights';
+registerMode({
+  id: 'flights',
+  button: modeFlights,
+  panels: [flightForm],
+  results: region,
+  hero: 'Pick where you are flying from and to, and we check Nepali ticket-booking sites live, then sort every fare we actually find from cheapest upward.',
+  onActivate: () => fromInput.focus({ preventScroll: true }),
+});
 
-  modeFlights.classList.toggle('is-active', flights);
-  modeProducts.classList.toggle('is-active', !flights);
-  modeFlights.setAttribute('aria-selected', String(flights));
-  modeProducts.setAttribute('aria-selected', String(!flights));
-
-  productForm.hidden = flights;
-  productExamples.hidden = flights;
-  flightForm.hidden = !flights;
-
-  heroSub.textContent = flights
-    ? 'Pick where you are flying from and to, and we check Nepali ticket-booking sites live, then sort every fare we actually find from cheapest upward.'
-    : 'Type a product and we check Nepali stores and marketplaces live, then sort every listing we actually find from cheapest to most expensive.';
-
-  // Only one set of results is meaningful at a time.
-  if (flights) {
-    productResults.hidden = true;
-  } else {
-    region.hidden = true;
-  }
-  statusRegion.innerHTML = '';
-
-  if (push) {
-    const url = new URL(window.location);
-    if (flights) url.searchParams.set('mode', 'flights');
-    else url.searchParams.delete('mode');
-    window.history.replaceState({}, '', url);
-  }
-
-  (flights ? fromInput : document.getElementById('q')).focus({ preventScroll: true });
-}
+registerMode({
+  id: 'products',
+  button: modeProducts,
+  panels: [productForm, productExamples],
+  results: productResults,
+  hero: 'Type a product and we check Nepali stores and marketplaces live, then sort every listing we actually find from cheapest to most expensive.',
+  onActivate: () => document.getElementById('q').focus({ preventScroll: true }),
+});
 
 // ------------------------------------------------------------------ rendering
 
@@ -263,7 +296,8 @@ function render(payload) {
   renderSummary(payload);
   renderWarnings(payload);
   renderProviders(payload);
-  renderRows([...payload.results].sort(SORTERS[sortSelect.value] ?? SORTERS['fare-asc']));
+  airlineFilter.update(payload.results.map((row) => ({ key: row.airline, name: row.airline })));
+  renderCurrentFares();
 }
 
 // -------------------------------------------------------------------- search
@@ -294,6 +328,10 @@ async function runFlightSearch() {
     showPanel(`<h2>Pick a travel date</h2><p>Fares depend on the date, so we need one before searching.</p>`);
     return;
   }
+  if (tripType === 'return' && !returnInput.value) {
+    showPanel(`<h2>Pick a return date</h2><p>A round trip needs the date you are coming back.</p>`);
+    return;
+  }
 
   inFlight?.abort();
   inFlight = new AbortController();
@@ -304,7 +342,9 @@ async function runFlightSearch() {
     date: dateInput.value,
     adults: document.getElementById('adults').value,
     children: document.getElementById('children').value,
+    tripType,
   });
+  if (tripType === 'return' && returnInput.value) params.set('returnDate', returnInput.value);
 
   const url = new URL(window.location);
   url.search = `?mode=flights&${params}`;
@@ -370,13 +410,11 @@ for (const chip of flightForm.querySelectorAll('.chip[data-route]')) {
 }
 
 sortSelect.addEventListener('change', () => {
-  if (current?.results?.length) {
-    renderRows([...current.results].sort(SORTERS[sortSelect.value] ?? SORTERS['fare-asc']));
-  }
+  if (current?.results?.length) renderCurrentFares();
 });
 
-modeProducts.addEventListener('click', () => setMode('products'));
-modeFlights.addEventListener('click', () => setMode('flights'));
+tripOneWay.addEventListener('click', () => setTripType('oneway'));
+tripReturn.addEventListener('click', () => setTripType('return'));
 
 /** A week out is the common case and keeps the field from starting empty. */
 function defaultDate() {
@@ -387,13 +425,17 @@ function defaultDate() {
 
 const today = new Date().toISOString().slice(0, 10);
 dateInput.min = today;
+returnInput.min = today;
 dateInput.value = defaultDate();
+// The return leg cannot depart before the outbound one.
+dateInput.addEventListener('change', () => {
+  returnInput.min = dateInput.value || today;
+  if (returnInput.value && returnInput.value < dateInput.value) returnInput.value = dateInput.value;
+});
 
 // Deep links: /?mode=flights&from=KTM&to=PKR&date=2026-09-20
 const initial = new URL(window.location).searchParams;
 if (initial.get('mode') === 'flights') {
-  setMode('flights', { push: false });
-
   const preset = { from: initial.get('from'), to: initial.get('to'), date: initial.get('date') };
   // Resolve the codes to readable labels, and have the hidden fields set
   // before anything is focused.
@@ -409,6 +451,10 @@ if (initial.get('mode') === 'flights') {
   if (preset.date) dateInput.value = preset.date;
   if (initial.get('adults')) document.getElementById('adults').value = initial.get('adults');
   if (initial.get('children')) document.getElementById('children').value = initial.get('children');
+  if (initial.get('tripType') === 'return') {
+    setTripType('return');
+    if (initial.get('returnDate')) returnInput.value = initial.get('returnDate');
+  }
 
   if (preset.from && preset.to && dateInput.value) runFlightSearch();
 }

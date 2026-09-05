@@ -73,7 +73,7 @@ export default {
     return Boolean(process.env.AMADEUS_CLIENT_ID && process.env.AMADEUS_CLIENT_SECRET);
   },
 
-  async searchFlights({ from, to, date, adults = 1, children = 0, infants = 0 }, { limit = 25, timeout } = {}) {
+  async searchFlights({ from, to, date, adults = 1, children = 0, infants = 0, returnDate = null }, { limit = 25, timeout } = {}) {
     const host = HOSTS[process.env.AMADEUS_ENV === 'production' ? 'production' : 'test'];
     const bearer = await accessToken(timeout);
 
@@ -85,6 +85,7 @@ export default {
       currencyCode: 'NPR',
       max: String(Math.min(limit, 50)),
     });
+    if (returnDate) params.set('returnDate', returnDate);
     if (children) params.set('children', String(children));
     if (infants) params.set('infants', String(infants));
 

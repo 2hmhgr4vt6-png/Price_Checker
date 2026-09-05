@@ -92,6 +92,8 @@ body {
 .field--airport { flex: 1 1 190px; }
 .field--date { flex: 0 1 165px; }
 .field--pax { flex: 0 1 105px; }
+/* The movie mode's day/show selects hold longer words than a passenger count. */
+#movie-form .field--pax { flex: 0 1 150px; }
 .flight-search__go {
   flex: 0 0 auto; padding: 12px 22px; font: inherit; font-weight: 650; color: #fff;
   background: var(--crimson); border: 0; border-radius: 9px; cursor: pointer;
@@ -104,6 +106,29 @@ body {
   border: 1px solid var(--line); border-radius: 9px; cursor: pointer;
 }
 .swap:hover { border-color: var(--blue); background: #eef3fc; }
+
+/* ---------- trip type ---------- */
+.trip-type { display: inline-flex; gap: 4px; padding: 3px; margin-bottom: 12px; background: #eef1f6; border-radius: 999px; }
+.trip {
+  font: inherit; font-size: .82rem; font-weight: 600; padding: 6px 16px; cursor: pointer;
+  color: var(--muted); background: transparent; border: 0; border-radius: 999px;
+}
+.trip.is-active { background: var(--card); color: var(--crimson); box-shadow: var(--shadow); }
+.trip:focus-visible { outline: 3px solid rgba(0, 56, 147, .35); outline-offset: 1px; }
+
+/* ---------- result filters ---------- */
+.filter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.filter__label { font-size: .78rem; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.filter-chip {
+  font: inherit; font-size: .82rem; padding: 5px 12px; cursor: pointer;
+  color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.filter-chip:hover { border-color: var(--blue); }
+.filter-chip.is-active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.filter-chip__count { font-size: .72rem; opacity: .7; font-variant-numeric: tabular-nums; }
+.filter-chip.is-active .filter-chip__count { opacity: .85; }
+.filter-chip:focus-visible { outline: 3px solid rgba(0, 56, 147, .35); outline-offset: 1px; }
 
 /* ---------- airport suggestions ---------- */
 .suggestions {
@@ -261,6 +286,9 @@ table.results tbody tr.is-best { background: #f4fbf6; }
   .flight-search__row { flex-direction: column; align-items: stretch; }
   .field--airport, .field--date, .field--pax { flex: 1 1 auto; width: 100%; }
   .flight-search__go { width: 100%; padding: 14px; }
+  .trip-type { display: flex; width: 100%; }
+  .trip { flex: 1; }
+  .filter { gap: 6px; }
   .swap { align-self: center; width: 100%; margin: 0; }
 
   /* Flight cards: airline and fare on the top line, details beneath. */

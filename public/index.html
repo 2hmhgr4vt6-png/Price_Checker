@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nepali Price Checker — compare prices across Nepali online stores</title>
-<meta name="description" content="Search a product once and compare live prices across Daraz Nepal, SastoDeal, Oliz Store, Neoshop24 and other Nepali online shops.">
+<meta name="description" content="Compare prices in Nepal: products across Daraz, Hukut, Evo Store, Bhatbhateni and more; flight fares across Nepali booking sites; and cinema ticket rates.">
 <link rel="stylesheet" href="/styles.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🏔️</text></svg>">
 </head>
@@ -15,7 +15,7 @@
       <span class="brand__mark" aria-hidden="true"></span>
       <span class="brand__text">Nepali <strong>Price Checker</strong></span>
     </a>
-    <p class="masthead__tag">Compare one product across Nepal&rsquo;s online shops</p>
+    <p class="masthead__tag">Compare prices across Nepal&rsquo;s shops, airlines and cinemas</p>
   </div>
 </header>
 
@@ -33,6 +33,9 @@
       </button>
       <button type="button" class="mode" id="mode-flights" role="tab" aria-selected="false" aria-controls="flight-form">
         ✈️ Flight tickets
+      </button>
+      <button type="button" class="mode" id="mode-movies" role="tab" aria-selected="false" aria-controls="movie-form">
+        🎬 Movie tickets
       </button>
     </div>
 
@@ -58,6 +61,11 @@
     <!-- Flight search. Both From and To are comboboxes backed by /api/airports;
          the visible input holds a readable label, the hidden field the IATA code. -->
     <form class="flight-search" id="flight-form" role="search" autocomplete="off" hidden aria-labelledby="mode-flights">
+      <div class="trip-type" role="radiogroup" aria-label="Trip type">
+        <button type="button" class="trip is-active" id="trip-oneway" role="radio" aria-checked="true">One way</button>
+        <button type="button" class="trip" id="trip-return" role="radio" aria-checked="false">Round trip</button>
+      </div>
+
       <div class="flight-search__row">
         <div class="field field--airport">
           <label for="from-input">From</label>
@@ -80,6 +88,11 @@
         <div class="field field--date">
           <label for="depart-date">Departure</label>
           <input id="depart-date" type="date" name="date" required>
+        </div>
+
+        <div class="field field--date" id="return-field" hidden>
+          <label for="return-date">Return</label>
+          <input id="return-date" type="date" name="returnDate">
         </div>
 
         <div class="field field--pax">
@@ -108,7 +121,70 @@
     </form>
   </section>
 
+    <!-- Movies: cinemas publish a rate card rather than per-film prices, so
+         this compares those rates instead of asking for a title. -->
+    <form class="flight-search" id="movie-form" role="search" hidden aria-labelledby="mode-movies">
+      <div class="flight-search__row">
+        <div class="field field--pax">
+          <label for="movie-band">Day</label>
+          <select id="movie-band">
+            <option value="">Any day</option>
+            <option value="weekday">Weekday</option>
+            <option value="midweek">Midweek offer</option>
+            <option value="weekend">Weekend</option>
+          </select>
+        </div>
+        <div class="field field--pax">
+          <label for="movie-slot">Show</label>
+          <select id="movie-slot">
+            <option value="">Any show</option>
+            <option value="morning">Morning</option>
+            <option value="regular">Regular</option>
+            <option value="night">Night</option>
+          </select>
+        </div>
+        <button type="submit" class="flight-search__go" id="movie-btn">Compare ticket prices</button>
+      </div>
+    </form>
+
   <section id="status-region" aria-live="polite"></section>
+
+  <!-- Cinema ticket rates. -->
+  <section id="movie-results-region" hidden>
+    <div class="results__head">
+      <div>
+        <h2 id="movie-results-title"></h2>
+        <p class="results__meta" id="movie-results-meta"></p>
+      </div>
+    </div>
+
+    <div id="movie-summary"></div>
+    <div id="movie-warnings"></div>
+    <div class="filter" id="cinema-filter" hidden></div>
+
+    <table class="results" id="movie-table">
+      <thead>
+        <tr>
+          <th scope="col">Cinema</th>
+          <th scope="col">Show</th>
+          <th scope="col">Days</th>
+          <th scope="col" class="num">Ticket (NPR)</th>
+          <th scope="col"><span class="sr-only">Link</span></th>
+        </tr>
+      </thead>
+      <tbody id="movie-body"></tbody>
+    </table>
+
+    <p class="disclaimer">
+      These are each cinema&rsquo;s published rates, not seat availability for a particular film.
+      3D, recliner and premium screens usually cost more &mdash; confirm when you book.
+    </p>
+
+    <details class="store-status" id="cinema-status">
+      <summary>Which cinemas were checked?</summary>
+      <ul id="cinema-list"></ul>
+    </details>
+  </section>
 
   <!-- Flight results. Same structure as the product table so the card
        collapse and sort behaviour are shared. -->
@@ -131,6 +207,7 @@
 
     <div id="flight-summary"></div>
     <div id="flight-warnings"></div>
+    <div class="filter" id="airline-filter" hidden></div>
 
     <table class="results" id="flight-table">
       <thead>
@@ -178,6 +255,7 @@
 
     <div id="summary"></div>
     <div id="warnings"></div>
+    <div class="filter" id="shop-filter" hidden></div>
 
     <table class="results" id="results-table">
       <thead>
@@ -207,12 +285,22 @@
 <footer class="footer">
   <div class="wrap">
     <p>
-      Nepali Price Checker is an independent comparison tool. It shows only listings
-      returned live by each shop &mdash; nothing is estimated or filled in.
-      We are not affiliated with any store listed.
+      Nepali Price Checker is an independent comparison tool. It shows only prices
+      returned live by each shop, booking site and cinema &mdash; nothing is estimated
+      or filled in. We are not affiliated with any business listed.
     </p>
   </div>
 </footer>
+
+<template id="movie-row-template">
+  <tr>
+    <td data-label="Cinema"><span class="shop cinema"></span><span class="tags"></span></td>
+    <td data-label="Show"><span class="show"></span></td>
+    <td data-label="Days"><span class="band"></span></td>
+    <td data-label="Ticket" class="num"><span class="price"></span></td>
+    <td class="action"><a class="btn-view" target="_blank" rel="noopener nofollow">Cinema site</a></td>
+  </tr>
+</template>
 
 <template id="flight-row-template">
   <tr>
@@ -240,5 +328,6 @@
 
 <script src="/app.js" type="module"></script>
 <script src="/flights.js" type="module"></script>
+<script src="/movies.js" type="module"></script>
 </body>
 </html>

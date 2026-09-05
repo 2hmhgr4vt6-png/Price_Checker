@@ -3,8 +3,10 @@
  *
  * The page owns no product data of its own: every row it renders comes from
  * GET /api/search, which in turn only contains listings a store actually
- * returned. Sorting is done client side so re-sorting never costs a round trip.
+ * returned. Sorting and shop filtering are done client side, so neither costs
+ * a round trip.
  */
+import { attachFilter, applyFilter } from './filters.js';
 
 const form = document.getElementById('search-form');
 const input = document.getElementById('q');
@@ -22,6 +24,32 @@ const rowTemplate = document.getElementById('row-template');
 
 let current = null;      // last successful payload
 let inFlight = null;     // AbortController for the running request
+
+// Narrowing to one shop is client side: the rows are already here.
+const shopFilter = attachFilter({
+  container: document.getElementById('shop-filter'),
+  label: 'Shop',
+  onChange: () => renderCurrentRows(),
+});
+
+function visibleRows() {
+  return applyFilter(current?.results ?? [], (row) => row.storeId, shopFilter.selected);
+}
+
+function renderCurrentRows() {
+  const rows = [...visibleRows()].sort(SORTERS[sortSelect.value] ?? SORTERS['price-asc']);
+  renderRows(rows);
+  updateResultCount(rows.length);
+}
+
+/** Keep the heading honest when a filter is hiding rows. */
+function updateResultCount(shown) {
+  if (!current) return;
+  const total = current.resultCount;
+  const suffix = shown === total ? '' : ` (${shown} shown)`;
+  resultsTitle.textContent =
+    `${total} listing${total === 1 ? '' : 's'} for “${current.query}”${suffix}`;
+}
 
 const npr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 const formatNpr = (amount) => `Rs. ${npr.format(amount)}`;
@@ -220,7 +248,8 @@ function render(payload) {
   renderSummary(payload);
   renderWarnings(payload);
   renderStoreStatus(payload);
-  renderRows([...payload.results].sort(SORTERS[sortSelect.value] ?? SORTERS['price-asc']));
+  shopFilter.update(payload.results.map((row) => ({ key: row.storeId, name: row.storeName })));
+  renderCurrentRows();
 }
 
 async function runSearch(query) {
@@ -267,9 +296,7 @@ for (const chip of document.querySelectorAll('.chip')) {
 }
 
 sortSelect.addEventListener('change', () => {
-  if (current?.results?.length) {
-    renderRows([...current.results].sort(SORTERS[sortSelect.value] ?? SORTERS['price-asc']));
-  }
+  if (current?.results?.length) renderCurrentRows();
 });
 
 // Deep link support: /?q=iphone+17 runs the search on load.

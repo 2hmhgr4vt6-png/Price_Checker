@@ -14,6 +14,29 @@
  */
 import { renderedStore } from './rendered.js';
 
+/**
+ * General and household retailers, which is where searches outside
+ * electronics land: groceries, kitchenware, tools, sports kit, gas cylinders.
+ * Daraz covers those categories too, but a single marketplace is not a
+ * comparison, and these are the largest Nepali shops that stock them.
+ */
+export const bhatbhateni = renderedStore({
+  id: 'bhatbhateni',
+  name: 'Bhatbhateni Online',
+  homepage: 'https://bhatbhateni.com.np',
+  searchUrl: (query) => `https://bhatbhateni.com.np/search?q=${encodeURIComponent(query)}`,
+});
+
+export const muncha = renderedStore({
+  id: 'muncha',
+  name: 'Muncha',
+  homepage: 'https://muncha.com',
+  // Its own search form posts these three, and the code is the only one that
+  // varies per query.
+  searchUrl: (query) =>
+    `https://muncha.com/Shop/Search?merchantID=1&CategoryID=0&q=${encodeURIComponent(query)}`,
+});
+
 export const smartdoko = renderedStore({
   id: 'smartdoko',
   name: 'SmartDoko',
